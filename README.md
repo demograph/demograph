@@ -27,3 +27,5 @@ such that partial solutions compose into a larger solution. Rewrite
 - Experiment with people in the know, acquire both expert opinion and
 user feedback.
 - Rince and repeat?
+
+See TODO.md for a more concrete application of the above guidelines
