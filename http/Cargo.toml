@@ -2,5 +2,6 @@
 name = "http"
 version = "0.1.0"
 authors = ["Merlijn Boogerd <mboogerd@xebia.com>"]
+edition = "2018"
 
 [dependencies]

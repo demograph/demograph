@@ -2,6 +2,7 @@
 authors = ["Merlijn Boogerd <mboogerd@xebia.com>"]
 name = "demograph"
 version = "0.1.0"
+edition = "2018"
 
 [dependencies]
 http = { path = "http" }
@@ -16,3 +17,5 @@ tokio-core = "0.1.17"
 tokio-fs = "0.1.4"
 tokio-io = "0.1.10"
 websocket = "0.21.1"
+regex = "1"
+lazy_static = "1.2.0"

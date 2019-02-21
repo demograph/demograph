@@ -1,19 +1,21 @@
-use chunks_codec::ChunksCodec;
+use std::net::SocketAddr;
+use std::path::Path;
+use std::prelude::v1::Vec;
+
 use futures::future;
 use futures::Sink;
 use hyper::rt::{Future, Stream};
 use hyper::service::Service;
 use hyper::Chunk;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use std::net::SocketAddr;
+use tokio::fs::OpenOptions;
 use tokio_fs::File;
 
-use api::http::ResponseStream;
-use api::http::ResponseStreamError;
-use publisher::error::PublisherError;
-use std::path::Path;
-use tokio::fs::OpenOptions;
-use LOG_DIR;
+use crate::api::http::ResponseStream;
+use crate::api::http::ResponseStreamError;
+use crate::chunks_codec::ChunksCodec;
+use crate::publisher::error::PublisherError;
+use crate::LOG_DIR;
 
 pub struct PublisherSession {
     remote: SocketAddr,
@@ -34,39 +36,55 @@ impl Service for PublisherSession {
     fn call(&mut self, req: Request<<Self as Service>::ReqBody>) -> <Self as Service>::Future {
         let mut response = Response::new(Body::empty());
 
-        match (req.method(), req.uri().path()) {
-            (&Method::GET, "/") => {
-                *response.body_mut() = Body::from("Try POSTing data to /publish");
-            }
-            (&Method::POST, "/publish") => {
-                debug!("Incoming connection from {}", self.remote);
+        // TODO: Figure out how to extract the next two statements into a function Request<T> -> Vec<&str>
+        let path: String = req.uri().path().to_owned();
+        let segments: Vec<&str> = path
+            .split("/")
+            .filter(|segment| !segment.is_empty())
+            .collect();
 
-                let chunk_source = req.into_body().map_err(PublisherError::BodyAccessError);
-                let pipe = open_session_log(self.remote)
-                    .map(create_chunk_sink)
-                    .and_then(|chunk_sink| chunk_source.forward(chunk_sink));
+        debug!("Path segments: {:?}", segments);
 
-                // Some coercion required to use the future result as a result body
-                let response_future: ResponseStream = Box::new(
-                    pipe.into_stream()
-                        .inspect_err(|e| error!("Failed to process request. {}", e))
-                        .map(|_| Chunk::from("{}"))
-                        .map_err(|e| Box::new(e) as ResponseStreamError),
-                );
-
-                *response.body_mut() = Body::from(response_future);
+        match (req.method(), &segments[..]) {
+            (&Method::GET, []) => *response.body_mut() = Body::from("Try POSTing data to /publish"),
+            (&Method::GET, ["topic", topic]) => {
+                *response.body_mut() = Body::from(format!("{{\"topic\":\"{}\"}}", topic))
             }
-            _ => {
-                *response.status_mut() = StatusCode::NOT_FOUND;
+            (&Method::POST, ["topic", topic]) => {
+                self.handle_topic_publish(topic, req, &mut response)
             }
-        };
+            _ => *response.status_mut() = StatusCode::NOT_FOUND,
+        }
 
         Box::new(future::ok(response))
     }
 }
 
-fn open_session_log(remote: SocketAddr) -> impl Future<Item = File, Error = PublisherError> {
-    let path = Path::new(LOG_DIR).join(Path::new(&(remote.to_string() + ".log")));
+impl PublisherSession {
+    fn handle_topic_publish(
+        &self,
+        topic: &str,
+        req: Request<<PublisherSession as Service>::ReqBody>,
+        response: &mut Response<Body>,
+    ) {
+        debug!("Incoming connection from {}", self.remote);
+        let chunk_source = req.into_body().map_err(PublisherError::BodyAccessError);
+        let pipe = open_topic_log(topic)
+            .map(create_chunk_sink)
+            .and_then(|chunk_sink| chunk_source.forward(chunk_sink));
+        // Some coercion required to use the future result as a result body
+        let response_future: ResponseStream = Box::new(
+            pipe.into_stream()
+                .inspect_err(|e| error!("Failed to process request. {}", e))
+                .map(|_| Chunk::from("{}"))
+                .map_err(|e| Box::new(e) as ResponseStreamError),
+        );
+        *response.body_mut() = Body::from(response_future);
+    }
+}
+
+fn open_topic_log(topic: &str) -> impl Future<Item = File, Error = PublisherError> {
+    let path = Path::new(LOG_DIR).join(Path::new(&(topic.to_owned() + ".log")));
 
     OpenOptions::new()
         .write(true)

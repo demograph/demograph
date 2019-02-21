@@ -1,15 +1,5 @@
-extern crate bytes;
-extern crate futures;
-extern crate hyper;
 #[macro_use]
 extern crate log;
-extern crate simplelog;
-extern crate tokio;
-extern crate tokio_codec;
-extern crate tokio_core;
-extern crate tokio_fs;
-extern crate tokio_io;
-extern crate websocket;
 
 use log::LevelFilter;
 use simplelog::*;
