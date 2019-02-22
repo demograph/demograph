@@ -43,7 +43,7 @@ impl Service for UserApiSession {
         // TODO: Figure out how to extract the next two statements into a function Request<T> -> Vec<&str>
         let path: String = req.uri().path().to_owned();
         let segments: Vec<&str> = path
-            .split("/")
+            .split('/')
             .filter(|segment| !segment.is_empty())
             .collect();
 
@@ -51,11 +51,14 @@ impl Service for UserApiSession {
 
         match (req.method(), &segments[..]) {
             (&Method::GET, []) => {
-                *response.body_mut() = Body::from("Available: GET/POST on /topic/[topic]")
+                return UserApiSession::build_response(Response::new(Body::from(HEALTHY_MESSAGE)));
             }
-            (&Method::GET, ["topic", topic]) => self.handle_topic_query(topic, req, &mut response),
-            (&Method::POST, ["topic", topic]) => {
-                self.handle_topic_publish(topic, req, &mut response)
+            (&Method::GET, ["topic", topic]) => return self.handle_topic_query(topic),
+            (&Method::POST, ["topic", topic]) => return self.handle_topic_publish(topic, req),
+            (&Method::GET, _) => {
+                return UserApiSession::build_response(UserApiSession::not_found_response(
+                    RESOURCE_NOT_FOUND_MESSAGE,
+                ));
             }
             _ => *response.status_mut() = StatusCode::NOT_FOUND,
         }
@@ -67,37 +70,71 @@ impl Service for UserApiSession {
 pub type ChunkStreamError = Box<(dyn std::error::Error + Sync + Send)>;
 type ChunkStream = Box<dyn Stream<Item = Chunk, Error = ChunkStreamError> + Send + 'static>;
 
+const HEALTHY_MESSAGE: &'static str = "{\"status\":\"HEALTHY\"}";
+const RESOURCE_NOT_FOUND_MESSAGE: &'static str =
+    "{\"error\":\"No resource found at the given URL\"}";
+const TOPIC_NOT_FOUND_MESSAGE: &'static str = "{\"error\":\"topic not found\"}";
+const INTERNAL_SERVER_ERROR_MESSAGE: &'static str =
+    "{\"error\":\"internal server error occurred!\"}";
+
 impl UserApiSession {
-    fn handle_topic_query(
-        &self,
-        topic: &str,
-        req: Request<<UserApiSession as Service>::ReqBody>,
-        response: &mut Response<Body>,
-    ) {
+    fn handle_topic_query(&self, topic: &str) -> <Self as Service>::Future {
         debug!("Querying '{}' from connection {}", topic, self.remote);
 
-        let chunk_source: ChunkStream = Box::new(
-            open_topic_log_read(topic)
-                .into_stream()
-                .inspect_err(|e| error!("Failed to open file. {}", e))
-                .map_err(|e| Box::new(e) as ResponseStreamError)
-                .map(|file| {
-                    create_chunk_source(file)
-                        .inspect_err(|e| error!("Failed to read file. {}", e))
-                        .map_err(|e| Box::new(e) as ResponseStreamError)
-                })
-                .flatten(),
-        );
+        return Box::new(open_topic_log_read(topic).then(|result| match result {
+            Ok(file) => {
+                debug!("Streaming data to client");
+                future::ok(Self::topic_response(file))
+            }
+            Err(UserApiError::LogOpeningError(error)) => {
+                info!("Failed to open file. {}", error);
+                future::ok(Self::not_found_response(TOPIC_NOT_FOUND_MESSAGE))
+            }
+            Err(other_error) => {
+                error!("Failed to open file. {}", other_error);
+                future::ok(Self::serverside_error_response())
+            }
+        }));
+    }
 
-        *response.body_mut() = Body::from(chunk_source);
+    pub fn topic_response(file: File) -> Response<<Self as Service>::ResBody> {
+        let chunk_source: ChunkStream = Box::new(
+            create_chunk_source(file)
+                .inspect_err(|e| error!("Failed to read file. {}", e))
+                .map_err(|e| Box::new(e) as ChunkStreamError),
+        );
+        let body = Body::from(chunk_source);
+        return Response::builder()
+            .status(StatusCode::OK)
+            .body(body)
+            .unwrap();
+    }
+
+    pub fn not_found_response(msg: &'static str) -> Response<<Self as Service>::ResBody> {
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from(msg))
+            .unwrap()
+    }
+
+    pub fn serverside_error_response() -> Response<<Self as Service>::ResBody> {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(INTERNAL_SERVER_ERROR_MESSAGE))
+            .unwrap()
+    }
+
+    pub fn build_response(
+        response: Response<<Self as Service>::ResBody>,
+    ) -> <Self as Service>::Future {
+        Box::new(future::ok(response))
     }
 
     fn handle_topic_publish(
         &self,
         topic: &str,
         req: Request<<UserApiSession as Service>::ReqBody>,
-        response: &mut Response<Body>,
-    ) {
+    ) -> <Self as Service>::Future {
         debug!("Publishing to '{}' from connection {}", topic, self.remote);
         let chunk_source = req.into_body().map_err(UserApiError::BodyAccessError);
         let pipe = open_topic_log_overwrite(topic)
@@ -110,7 +147,13 @@ impl UserApiSession {
                 .map(|_| Chunk::from("{}"))
                 .map_err(|e| Box::new(e) as ResponseStreamError),
         );
-        *response.body_mut() = Body::from(response_future);
+
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(response_future))
+            .unwrap();
+
+        Box::new(future::ok(response))
     }
 }
 
