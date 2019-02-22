@@ -1,4 +1,4 @@
-use crate::publisher::session::PublisherSession;
+use crate::publisher::session::UserApiSession;
 use hyper::rt::{Future, Stream};
 use hyper::server::conn::Http;
 use hyper::Chunk;
@@ -17,7 +17,7 @@ pub fn init_server<A: Into<SocketAddr>>(address: A) {
         .incoming()
         .for_each(move |(tcp_stream, addr)| {
             tokio::spawn(
-                http.serve_connection(tcp_stream, PublisherSession::new(addr))
+                http.serve_connection(tcp_stream, UserApiSession::new(addr))
                     .map(|_| ())
                     .map_err(|_| ()),
             );

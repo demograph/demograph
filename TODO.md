@@ -1,6 +1,6 @@
 # To do
 
-[ ] Redesign for multiple public stateful topics / variables
+[X] Redesign for multiple public stateful topics / variables
 [ ] Create GET interface to retrieve stored data
 [ ] Create websocket to stream stored data
 [ ] Factor out storage related code to StorageProvider
