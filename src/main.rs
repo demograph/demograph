@@ -7,9 +7,7 @@ use std::fs::create_dir;
 use std::path::Path;
 
 mod api;
-mod chunks_codec;
-mod publisher;
-use api::http::init_server;
+use api::http::server::init_server;
 
 // TODO config
 const LOG_DIR: &str = "./data/";

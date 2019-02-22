@@ -1,13 +1,8 @@
-use crate::publisher::session::UserApiSession;
+use crate::api::http::session::UserApiSession;
 use hyper::rt::{Future, Stream};
 use hyper::server::conn::Http;
-use hyper::Chunk;
 use std::net::SocketAddr;
 use tokio_core::net::*;
-
-pub type ResponseStreamError = Box<(dyn std::error::Error + Sync + Send + 'static)>;
-pub type ResponseStream =
-    Box<(dyn futures::Stream<Error = ResponseStreamError, Item = Chunk> + Send + 'static)>;
 
 pub fn init_server<A: Into<SocketAddr>>(address: A) {
     let socket_address = address.into();
