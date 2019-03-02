@@ -1,30 +1,29 @@
 use std::net::SocketAddr;
-use std::path::Path;
-use std::path::PathBuf;
 
 use futures::future;
-use futures::Sink;
 use hyper::rt::{Future, Stream};
 use hyper::service::Service;
 use hyper::Chunk;
 use hyper::{Body, Request, Response, StatusCode};
-use tokio::fs::OpenOptions;
-use tokio_fs::File;
 
 use crate::api::http;
-use crate::api::http::chunks_codec::ChunksCodec;
 use crate::api::http::error::UserApiError;
 use crate::api::http::ChunkStream;
 use crate::api::http::ChunkStreamError;
-use crate::LOG_DIR;
+use crate::domain::Topic;
+use crate::repository::{TopicRepository, TopicRepositoryError};
 
-pub struct UserApiSession {
+pub struct UserApiSession<TR: TopicRepository> {
     remote: SocketAddr,
+    topic_repository: TR,
 }
 
-impl UserApiSession {
-    pub fn new(remote: SocketAddr) -> UserApiSession {
-        UserApiSession { remote }
+impl<TR: TopicRepository> UserApiSession<TR> {
+    pub fn new(remote: SocketAddr, topic_repository: TR) -> UserApiSession<TR> {
+        UserApiSession {
+            remote,
+            topic_repository,
+        }
     }
 
     /**
@@ -33,13 +32,18 @@ impl UserApiSession {
     pub fn handle_topic_query(&self, topic: &str) -> <Self as Service>::Future {
         debug!("Querying '{}' from connection {}", topic, self.remote);
 
-        return Box::new(open_topic_log_read(topic).then(|result| match result {
-            Ok(file) => {
+        let ftopic = self
+            .topic_repository
+            .reload(topic.to_owned())
+            .from_err::<UserApiError>();
+
+        return Box::new(ftopic.then(|result| match result {
+            Ok(topic) => {
                 debug!("Streaming data to client");
-                future::ok(Self::topic_response(file))
+                future::ok(Self::topic_response(&topic))
             }
-            Err(UserApiError::LogOpeningError(error)) => {
-                info!("Failed to open file. {}", error);
+            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicLoadError(error))) => {
+                info!("Failed to load topic. {}", error);
                 future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
             }
             Err(other_error) => {
@@ -51,14 +55,21 @@ impl UserApiSession {
 
     pub fn handle_topic_publish(
         &self,
-        topic: &str,
-        req: Request<<UserApiSession as Service>::ReqBody>,
+        topic_name: &str,
+        req: Request<<UserApiSession<TR> as Service>::ReqBody>,
     ) -> <Self as Service>::Future {
-        debug!("Publishing to '{}' from connection {}", topic, self.remote);
+        debug!(
+            "Publishing to '{}' from connection {}",
+            topic_name, self.remote
+        );
         let chunk_source = req.into_body().map_err(UserApiError::BodyAccessError);
-        let pipe = open_topic_log_overwrite(topic)
-            .map(create_chunk_sink)
+        let pipe = self
+            .topic_repository
+            .load(topic_name.to_owned())
+            .from_err::<UserApiError>()
+            .map(|topic| topic.chunk_sink())
             .and_then(|chunk_sink| chunk_source.forward(chunk_sink));
+
         // Some coercion required to use the future result as a result body
         let response_future: ChunkStream = Box::new(
             pipe.into_stream()
@@ -75,9 +86,10 @@ impl UserApiSession {
         Box::new(future::ok(response))
     }
 
-    pub fn topic_response(file: File) -> Response<<Self as Service>::ResBody> {
+    pub fn topic_response(topic: &Topic) -> Response<<Self as Service>::ResBody> {
         let chunk_source: ChunkStream = Box::new(
-            create_chunk_source(file)
+            topic
+                .chunk_source()
                 .inspect_err(|e| error!("Failed to read file. {}", e))
                 .map_err(|e| Box::new(e) as ChunkStreamError),
         );
@@ -107,36 +119,4 @@ impl UserApiSession {
     ) -> <Self as Service>::Future {
         Box::new(future::ok(response))
     }
-}
-
-fn log_path(topic: &str) -> PathBuf {
-    Path::new(LOG_DIR).join(Path::new(&(topic.to_owned() + ".log")))
-}
-
-fn open_topic_log_overwrite(topic: &str) -> impl Future<Item = File, Error = UserApiError> {
-    OpenOptions::new()
-        .write(true)
-        .create(true)
-        .read(false)
-        .truncate(false)
-        .open(log_path(topic))
-        .map_err(UserApiError::LogOpeningError)
-}
-
-fn create_chunk_sink(file: File) -> impl Sink<SinkItem = Chunk, SinkError = UserApiError> {
-    tokio_codec::Decoder::framed(ChunksCodec::new(), file).sink_map_err(UserApiError::LogWriteError)
-}
-
-fn open_topic_log_read(topic: &str) -> impl Future<Item = File, Error = UserApiError> {
-    OpenOptions::new()
-        .write(false)
-        .create(false)
-        .read(true)
-        .truncate(false)
-        .open(log_path(topic))
-        .map_err(UserApiError::LogOpeningError)
-}
-
-fn create_chunk_source(file: File) -> impl Stream<Item = Chunk, Error = UserApiError> {
-    tokio_codec::Decoder::framed(ChunksCodec::new(), file).map_err(UserApiError::LogReadError)
 }

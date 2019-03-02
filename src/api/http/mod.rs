@@ -1,6 +1,6 @@
 use hyper::Chunk;
 
-mod chunks_codec;
+pub mod chunks_codec; // FIXME!
 mod error;
 pub mod server;
 mod session;

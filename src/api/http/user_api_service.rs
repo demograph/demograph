@@ -8,8 +8,9 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use crate::api::http;
 use crate::api::http::error::UserApiError;
 use crate::api::http::session::UserApiSession;
+use crate::repository::TopicRepository;
 
-impl Service for UserApiSession {
+impl<TR: TopicRepository> Service for UserApiSession<TR> {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = UserApiError;
@@ -30,16 +31,16 @@ impl Service for UserApiSession {
         // Routing
         match (req.method(), &segments[..]) {
             (&Method::GET, []) => {
-                return UserApiSession::build_response(Response::new(Body::from(
+                return UserApiSession::<TR>::build_response(Response::new(Body::from(
                     http::HEALTHY_MESSAGE,
                 )));
             }
             (&Method::GET, ["topic", topic]) => return self.handle_topic_query(topic),
             (&Method::POST, ["topic", topic]) => return self.handle_topic_publish(topic, req),
             (&Method::GET, _) => {
-                return UserApiSession::build_response(UserApiSession::not_found_response(
-                    http::RESOURCE_NOT_FOUND_MESSAGE,
-                ));
+                return UserApiSession::<TR>::build_response(
+                    UserApiSession::<TR>::not_found_response(http::RESOURCE_NOT_FOUND_MESSAGE),
+                );
             }
             _ => *response.status_mut() = StatusCode::NOT_FOUND,
         }

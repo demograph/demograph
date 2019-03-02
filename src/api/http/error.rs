@@ -1,3 +1,4 @@
+use crate::repository::TopicRepositoryError;
 use std::error::Error;
 use std::fmt;
 
@@ -6,9 +7,7 @@ pub enum UserApiError {
     BindError(),
     ConnectionServeError(),
     BodyAccessError(hyper::Error),
-    LogOpeningError(std::io::Error),
-    LogReadError(std::io::Error),
-    LogWriteError(std::io::Error),
+    TopicIOError(TopicRepositoryError),
 }
 
 impl fmt::Display for UserApiError {
@@ -17,11 +16,15 @@ impl fmt::Display for UserApiError {
             UserApiError::BindError() => write!(f, "BindError"),
             UserApiError::ConnectionServeError() => write!(f, "ConnectionServeError"),
             UserApiError::BodyAccessError(x) => write!(f, "BodyAccessError({})", x),
-            UserApiError::LogOpeningError(x) => write!(f, "LogOpeningError({})", x),
-            UserApiError::LogReadError(x) => write!(f, "LogReadError({})", x),
-            UserApiError::LogWriteError(x) => write!(f, "LogWriteError({})", x),
+            UserApiError::TopicIOError(x) => write!(f, "TopicIOError({})", x),
         }
     }
 }
 
 impl Error for UserApiError {}
+
+impl From<TopicRepositoryError> for UserApiError {
+    fn from(error: TopicRepositoryError) -> Self {
+        UserApiError::TopicIOError(error)
+    }
+}
