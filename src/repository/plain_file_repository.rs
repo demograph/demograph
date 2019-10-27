@@ -94,6 +94,7 @@ impl Topic for PlainFileTopic {
     ) -> Box<dyn Sink<SinkItem = Chunk, SinkError = TopicRepositoryError> + Send> {
         let open_file = readwrite_options()
             .create(true)
+            .truncate(true)
             .open(self.path.clone())
             .map_err(TopicRepositoryError::TopicLoadError);
 
