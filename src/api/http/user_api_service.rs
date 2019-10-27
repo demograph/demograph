@@ -37,6 +37,7 @@ impl<TR: TopicRepository> Service for UserApiSession<TR> {
             }
             (&Method::GET, ["topic", topic]) => return self.handle_topic_query(topic),
             (&Method::POST, ["topic", topic]) => return self.handle_topic_publish(topic, req),
+            (&Method::DELETE, ["topic", topic]) => return self.handle_topic_deletion(topic),
             (&Method::GET, _) => {
                 return UserApiSession::<TR>::build_response(
                     UserApiSession::<TR>::not_found_response(http::RESOURCE_NOT_FOUND_MESSAGE),

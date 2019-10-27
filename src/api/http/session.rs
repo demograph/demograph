@@ -37,7 +37,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
             .reload(topic.to_owned())
             .from_err::<UserApiError>();
 
-        return Box::new(ftopic.then(|result| match result {
+        Box::new(ftopic.then(|result| match result {
             Ok(topic) => {
                 debug!("Streaming data to client");
                 future::ok(Self::topic_response(&topic))
@@ -50,7 +50,33 @@ impl<TR: TopicRepository> UserApiSession<TR> {
                 error!("Failed to open file. {}", other_error);
                 future::ok(Self::serverside_error_response())
             }
-        }));
+        }))
+    }
+
+    pub fn handle_topic_deletion(&self, topic_name: &str) -> <Self as Service>::Future {
+        debug!(
+            "Removing topic '{}' from connection {}",
+            topic_name, self.remote
+        );
+        let removal = self.topic_repository.remove(topic_name.to_owned());
+        Box::new(removal.then(|result| match result {
+            Ok(_) => {
+                debug!("Removed topic");
+                let response = Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Body::empty())
+                    .unwrap();
+                future::ok(response)
+            }
+            Err(TopicRepositoryError::TopicRemovalError(error)) => {
+                info!("Failed to remove topic. {}", error);
+                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
+            }
+            Err(other_error) => {
+                error!("Failed to remove file. {}", other_error);
+                future::ok(Self::serverside_error_response())
+            }
+        }))
     }
 
     pub fn handle_topic_publish(

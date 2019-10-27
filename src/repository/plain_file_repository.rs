@@ -66,6 +66,21 @@ impl TopicRepository for PlainFileRepository {
             ))),
         })
     }
+
+    fn remove(
+        &self,
+        name: String,
+    ) -> Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send> {
+        let path = self.topic_path(&name);
+        Box::new(match path.exists() {
+            true => future::result(
+                std::fs::remove_file(path).map_err(TopicRepositoryError::TopicRemovalError),
+            ),
+            false => future::err(TopicRepositoryError::TopicRemovalError(Error::from(
+                ErrorKind::NotFound,
+            ))),
+        })
+    }
 }
 
 impl Clone for PlainFileRepository {

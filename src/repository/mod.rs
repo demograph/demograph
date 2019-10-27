@@ -21,4 +21,9 @@ pub trait TopicRepository: Clone {
         &self,
         name: String,
     ) -> Box<dyn Future<Item = Self::Topic, Error = error::TopicRepositoryError> + Send>;
+
+    fn remove(
+        &self,
+        name: String,
+    ) -> Box<dyn Future<Item = (), Error = error::TopicRepositoryError> + Send>;
 }
