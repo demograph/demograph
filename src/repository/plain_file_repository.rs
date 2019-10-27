@@ -49,7 +49,7 @@ impl TopicRepository for PlainFileRepository {
     fn load(
         &self,
         name: String,
-    ) -> Box<Future<Item = PlainFileTopic, Error = TopicRepositoryError> + Send> {
+    ) -> Box<dyn Future<Item = PlainFileTopic, Error = TopicRepositoryError> + Send> {
         let buf = self.topic_path(&name);
         Box::new(future::ok(PlainFileTopic::new(name, buf)))
     }
@@ -57,7 +57,7 @@ impl TopicRepository for PlainFileRepository {
     fn reload(
         &self,
         name: String,
-    ) -> Box<Future<Item = PlainFileTopic, Error = TopicRepositoryError> + Send> {
+    ) -> Box<dyn Future<Item = PlainFileTopic, Error = TopicRepositoryError> + Send> {
         let path = self.topic_path(&name);
         Box::new(match path.exists() {
             true => future::ok(PlainFileTopic::new(name, path)),
@@ -89,7 +89,9 @@ impl PlainFileTopic {
 
 impl Topic for PlainFileTopic {
     /** @deprecated Have to find an alternative still though */
-    fn chunk_sink(&self) -> Box<Sink<SinkItem = Chunk, SinkError = TopicRepositoryError> + Send> {
+    fn chunk_sink(
+        &self,
+    ) -> Box<dyn Sink<SinkItem = Chunk, SinkError = TopicRepositoryError> + Send> {
         let open_file = readwrite_options()
             .create(true)
             .open(self.path.clone())
@@ -103,7 +105,7 @@ impl Topic for PlainFileTopic {
         Box::new(file_sink.flatten_sink())
     }
     /** @deprecated Have to find an alternative still though */
-    fn chunk_source(&self) -> Box<Stream<Item = Chunk, Error = TopicRepositoryError> + Send> {
+    fn chunk_source(&self) -> Box<dyn Stream<Item = Chunk, Error = TopicRepositoryError> + Send> {
         let open_file = readwrite_options()
             .create(false)
             .open(self.path.clone())

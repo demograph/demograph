@@ -24,7 +24,7 @@ fn main() {
 
 fn init_logger() {
     CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Debug, Config::default()).unwrap(),
+        TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Stdout).unwrap(),
         WriteLogger::new(
             LevelFilter::Debug,
             Config::default(),

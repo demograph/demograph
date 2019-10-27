@@ -62,7 +62,7 @@ where
     fn handle_sink<SF>(&mut self, mut f: SF) -> Result<Async<()>, F::Error>
     where
         SF: FnMut(
-            &mut Sink<
+            &mut dyn Sink<
                 SinkItem = <<F as Future>::Item as Sink>::SinkItem,
                 SinkError = <<F as Future>::Item as Sink>::SinkError,
             >,

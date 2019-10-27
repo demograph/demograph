@@ -14,11 +14,11 @@ pub trait TopicRepository: Clone {
     fn load(
         &self,
         name: String,
-    ) -> Box<Future<Item = Self::Topic, Error = error::TopicRepositoryError> + Send>;
+    ) -> Box<dyn Future<Item = Self::Topic, Error = error::TopicRepositoryError> + Send>;
 
     /** Attempt to obtain a Topic for the given name, assuming that it exists */
     fn reload(
         &self,
         name: String,
-    ) -> Box<Future<Item = Self::Topic, Error = error::TopicRepositoryError> + Send>;
+    ) -> Box<dyn Future<Item = Self::Topic, Error = error::TopicRepositoryError> + Send>;
 }

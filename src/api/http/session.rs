@@ -86,7 +86,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
         Box::new(future::ok(response))
     }
 
-    pub fn topic_response(topic: &Topic) -> Response<<Self as Service>::ResBody> {
+    pub fn topic_response(topic: &dyn Topic) -> Response<<Self as Service>::ResBody> {
         let chunk_source: ChunkStream = Box::new(
             topic
                 .chunk_source()

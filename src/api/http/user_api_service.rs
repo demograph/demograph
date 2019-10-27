@@ -14,7 +14,7 @@ impl<TR: TopicRepository> Service for UserApiSession<TR> {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = UserApiError;
-    type Future = Box<Future<Item = Response<Body>, Error = UserApiError> + Send>;
+    type Future = Box<dyn Future<Item = Response<Body>, Error = UserApiError> + Send>;
 
     fn call(&mut self, req: Request<<Self as Service>::ReqBody>) -> <Self as Service>::Future {
         let mut response = Response::new(Body::empty());

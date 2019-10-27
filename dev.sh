@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
 
-cargo watch -x fmt -x test -x run -i data # -i *.log -i *.md
+if [ -n $1 ]; then
+    CMD=test
+fi
+
+cargo watch -x fmt -x $CMD -x run -i data # -i *.log -i *.md
