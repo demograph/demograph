@@ -5,13 +5,22 @@ use hyper::rt::{Future, Stream};
 use hyper::service::Service;
 use hyper::Chunk;
 use hyper::{Body, Request, Response, StatusCode};
+use serde_json::{Result, Value};
 
 use crate::api::http;
+use crate::api::http::chunks_codec::ChunksCodec;
 use crate::api::http::error::UserApiError;
+use crate::api::http::error::UserApiError::{
+    RequestJsonBodyParseError, TopicIOError, TopicJsonError,
+};
 use crate::api::http::ChunkStream;
 use crate::api::http::ChunkStreamError;
 use crate::domain::Topic;
 use crate::repository::{TopicRepository, TopicRepositoryError};
+use bytes::Bytes;
+use futures::stream::{Concat2, Map};
+use json_patch::{merge, patch, Patch, PatchError};
+use std::error::Error;
 
 pub struct UserApiSession<TR: TopicRepository> {
     remote: SocketAddr,
@@ -79,6 +88,48 @@ impl<TR: TopicRepository> UserApiSession<TR> {
         }))
     }
 
+    pub fn handle_topic_update(
+        &self,
+        topic_name: &str,
+        req: Request<<UserApiSession<TR> as Service>::ReqBody>,
+    ) -> <Self as Service>::Future {
+        debug!(
+            "Patching topic '{}' from connection {}",
+            topic_name, self.remote
+        );
+
+        let ftopic = self
+            .topic_repository
+            .reload(topic_name.to_owned())
+            .from_err::<UserApiError>();
+
+        let validated_patch = req
+            .into_body()
+            .map_err(UserApiError::BodyAccessError)
+            .concat2()
+            .and_then(move |body: Chunk| {
+                serde_json::from_slice::<Value>(&body)
+                    .map_err(UserApiError::RequestJsonBodyParseError)
+            });
+
+        let topic_and_result = ftopic.join(validated_patch);
+
+        Box::new(topic_and_result.then(move |result| match result {
+            Ok((topic, patch)) => {
+                debug!("Streaming data to client");
+                future::ok(Self::topic_patch_response(&topic, patch))
+            }
+            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicLoadError(error))) => {
+                info!("Failed to load topic. {}", error);
+                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
+            }
+            Err(other_error) => {
+                error!("Failed to open file. {}", other_error);
+                future::ok(Self::serverside_error_response())
+            }
+        }))
+    }
+
     pub fn handle_topic_publish(
         &self,
         topic_name: &str,
@@ -110,6 +161,36 @@ impl<TR: TopicRepository> UserApiSession<TR> {
             .unwrap();
 
         Box::new(future::ok(response))
+    }
+
+    pub fn topic_patch_response(
+        topic: &dyn Topic,
+        patch: Value,
+    ) -> Response<<Self as Service>::ResBody> {
+        debug!(
+            "topic_patch_response({})",
+            serde_json::to_string(&patch).unwrap_or("no patch".parse().unwrap())
+        );
+
+        let chunks = topic
+            .merge_patch(patch)
+            .map(|x| {
+                debug!("post patch");
+                return x;
+            })
+            .map_err(TopicIOError)
+            .and_then(|json| serde_json::to_vec(&json).map_err(TopicJsonError))
+            .map(Chunk::from)
+            .into_stream()
+            .map_err(|e| Box::new(e) as ChunkStreamError);
+
+        let stream: ChunkStream = Box::new(chunks);
+        let body: Body = Body::from(stream);
+
+        return Response::builder()
+            .status(StatusCode::OK)
+            .body(body)
+            .unwrap();
     }
 
     pub fn topic_response(topic: &dyn Topic) -> Response<<Self as Service>::ResBody> {

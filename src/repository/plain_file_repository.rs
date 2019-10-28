@@ -16,9 +16,15 @@ use hyper::Chunk;
 
 use super::flatten_sink::FlattenSinkOps;
 use crate::api::http::chunks_codec::ChunksCodec;
+use crate::repository::TopicRepositoryError::TopicJsonReadError;
+use futures::future::IntoFuture;
+use json_patch::{merge, patch, Patch};
+use serde_json::Value;
 use std::io::Error;
+use std::ops::DerefMut;
 use tokio::io::ErrorKind;
 
+#[derive(Clone)]
 pub struct PlainFileRepository {
     base_path: String,
 }
@@ -83,14 +89,7 @@ impl TopicRepository for PlainFileRepository {
     }
 }
 
-impl Clone for PlainFileRepository {
-    fn clone(&self) -> Self {
-        PlainFileRepository {
-            base_path: self.base_path.clone(),
-        }
-    }
-}
-
+#[derive(Clone)]
 pub struct PlainFileTopic {
     name: String,
     path: PathBuf,
@@ -133,6 +132,52 @@ impl Topic for PlainFileTopic {
 
         Box::new(file_stream.flatten_stream())
     }
+
+    fn read_as_json(&self) -> Box<dyn Future<Item = Value, Error = TopicRepositoryError> + Send> {
+        let future = self.chunk_source().concat2().and_then(|bytes| {
+            serde_json::from_slice::<Value>(&bytes)
+                .map_err(TopicRepositoryError::TopicJsonReadError)
+        });
+
+        Box::new(future)
+    }
+
+    fn write_as_json(
+        &self,
+        patch: Value,
+    ) -> Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send> {
+        let maybe_chunk = serde_json::to_vec(&patch)
+            .map(Chunk::from)
+            .map_err(TopicRepositoryError::TopicJsonWriteError);
+
+        match maybe_chunk {
+            Ok(chunk) => Box::new(self.chunk_sink().send(chunk).map(|_| ())),
+            Err(err) => Box::new(future::err(err)),
+        }
+    }
+
+    fn merge_patch(
+        &self,
+        update: Value,
+    ) -> Box<dyn Future<Item = Value, Error = TopicRepositoryError> + Send> {
+        // TODO: this is wrong, we shouldn't have to copy the (entire) context to reuse it later on
+        // We are doing this to keep hold of the pathbuf, but in the process cloning multiple times
+        // We could instead propagate the topic-name and generate the pathbuf at the required place
+        debug!("merge_patch");
+        let self_clone = (*self).clone();
+        let post_update = self
+            .read_as_json()
+            .map(move |mut json| {
+                merge(&mut json, &update);
+                json
+            })
+            .and_then(move |json| {
+                let copy = json.clone(); // TODO: Can this be done without clone? (check write side)
+                self_clone.write_as_json(json).map(|_| copy)
+            });
+
+        Box::new(post_update)
+    }
 }
 
 fn readwrite_options() -> OpenOptions {
@@ -140,37 +185,3 @@ fn readwrite_options() -> OpenOptions {
     options.write(true).read(true).truncate(false);
     return options;
 }
-
-//struct DelayedSink<S: Sink<SinkItem = _, SinkError = _>>(S);
-//
-//impl<S> DelayedSink<S> {
-//    fn unbuffered() -> impl Sink<SinkItem = _, SinkError = _>
-//    where
-//        W: Future<Sink<SinkItem = I, SinkError = E>>,
-//    {
-//
-//    }
-//}
-//
-//impl<W, SI, SE> Sink for DelayedSink<W>
-//where
-//    W: Future<Item = Sink<SinkItem = SI, SinkError = SE>, Error = SE>,
-//{
-//    type SinkItem = SI;
-//    type SinkError = SE;
-//
-//    fn start_send(
-//        &mut self,
-//        item: Self::SinkItem,
-//    ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-//        unimplemented!()
-//    }
-//
-//    fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-//        unimplemented!()
-//    }
-//
-//    fn close(&mut self) -> Result<Async<()>, Self::SinkError> {
-//        unimplemented!()
-//    }
-//}

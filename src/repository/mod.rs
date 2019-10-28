@@ -2,6 +2,9 @@ mod error;
 pub mod flatten_sink;
 mod plain_file_repository;
 
+#[cfg(test)]
+mod mod_test;
+
 pub use error::*;
 pub use plain_file_repository::*;
 

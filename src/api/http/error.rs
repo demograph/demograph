@@ -7,7 +7,9 @@ pub enum UserApiError {
     BindError(),
     ConnectionServeError(),
     BodyAccessError(hyper::Error),
+    RequestJsonBodyParseError(serde_json::error::Error),
     TopicIOError(TopicRepositoryError),
+    TopicJsonError(serde_json::error::Error),
 }
 
 impl fmt::Display for UserApiError {
@@ -16,7 +18,11 @@ impl fmt::Display for UserApiError {
             UserApiError::BindError() => write!(f, "BindError"),
             UserApiError::ConnectionServeError() => write!(f, "ConnectionServeError"),
             UserApiError::BodyAccessError(x) => write!(f, "BodyAccessError({})", x),
+            UserApiError::RequestJsonBodyParseError(x) => {
+                write!(f, "RequestJsonBodyParseError({})", x)
+            }
             UserApiError::TopicIOError(x) => write!(f, "TopicIOError({})", x),
+            UserApiError::TopicJsonError(x) => write!(f, "TopicJsonError({})", x),
         }
     }
 }
