@@ -11,6 +11,7 @@ use quick_error::quick_error;
 use std::fmt;
 use std::io;
 use tungstenite::protocol;
+use tungstenite::Error::ConnectionClosed;
 
 quick_error! {
     #[derive(Debug)]
@@ -48,7 +49,7 @@ fn header_matches<S: AsHeaderName>(headers: &HeaderMap<HeaderValue>, name: S, va
 pub fn spawn_websocket<T, F>(req: Request<Body>, mut f: F) -> Response<Body>
 where
     T: Default + Send + Sync + 'static,
-    F: FnMut(Message<T>) -> Box<Future<Item = Option<Message<T>>, Error = Error> + Send>
+    F: FnMut(Message<T>) -> Box<dyn Future<Item=Option<Message<T>>, Error=Error> + Send>
         + Send
         + 'static,
 {
@@ -197,8 +198,8 @@ impl<T> Stream for WebSocket<T> {
                 {
                     return Ok(Async::NotReady);
                 }
-                Err(::tungstenite::Error::ConnectionClosed(frame)) => {
-                    trace!("websocket closed: {:?}", frame);
+                Err(ConnectionClosed) => {
+                    trace!("websocket closed");
                     return Ok(Async::Ready(None));
                 }
                 Err(e) => {
@@ -218,6 +219,9 @@ impl<T> Stream for WebSocket<T> {
                 }
                 protocol::Message::Pong(payload) => {
                     trace!("websocket client pong: {:?}", payload);
+                }
+                protocol::Message::Close(maybe_frame) => {
+                    trace!("websocket close: {:?}", maybe_frame);
                 }
             }
         }
@@ -281,8 +285,8 @@ impl<T> Sink for WebSocket<T> {
             Err(::tungstenite::Error::Io(ref err)) if err.kind() == io::ErrorKind::WouldBlock => {
                 Ok(Async::NotReady)
             }
-            Err(::tungstenite::Error::ConnectionClosed(frame)) => {
-                trace!("websocket closed: {:?}", frame);
+            Err(ConnectionClosed) => {
+                trace!("websocket closed");
                 Ok(Async::Ready(()))
             }
             Err(err) => {
