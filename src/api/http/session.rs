@@ -41,25 +41,22 @@ impl<TR: TopicRepository> UserApiSession<TR> {
     pub fn handle_topic_query(&self, topic: &str) -> <Self as Service>::Future {
         debug!("Querying '{}' from connection {}", topic, self.remote);
 
-        let ftopic = self
+        let maybe_body = self
             .topic_repository
             .reload(topic.to_owned())
-            .from_err::<UserApiError>();
+            .from_err::<UserApiError>()
+            .map(|topic| {
+                let chunk_source: ChunkStream = Box::new(
+                    topic
+                        .chunk_source()
+                        .inspect_err(|e| error!("Failed to read file. {}", e))
+                        .map_err(|e| Box::new(e) as ChunkStreamError),
+                );
 
-        Box::new(ftopic.then(|result| match result {
-            Ok(topic) => {
-                debug!("Streaming data to client");
-                future::ok(Self::topic_response(&topic))
-            }
-            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicLoadError(error))) => {
-                info!("Failed to load topic. {}", error);
-                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
-            }
-            Err(other_error) => {
-                error!("Failed to open file. {}", other_error);
-                future::ok(Self::serverside_error_response())
-            }
-        }))
+                Body::from(chunk_source)
+            });
+
+        Self::create_response(maybe_body)
     }
 
     pub fn handle_topic_deletion(&self, topic_name: &str) -> <Self as Service>::Future {
@@ -67,25 +64,13 @@ impl<TR: TopicRepository> UserApiSession<TR> {
             "Removing topic '{}' from connection {}",
             topic_name, self.remote
         );
-        let removal = self.topic_repository.remove(topic_name.to_owned());
-        Box::new(removal.then(|result| match result {
-            Ok(_) => {
-                debug!("Removed topic");
-                let response = Response::builder()
-                    .status(StatusCode::OK)
-                    .body(Body::empty())
-                    .unwrap();
-                future::ok(response)
-            }
-            Err(TopicRepositoryError::TopicRemovalError(error)) => {
-                info!("Failed to remove topic. {}", error);
-                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
-            }
-            Err(other_error) => {
-                error!("Failed to remove file. {}", other_error);
-                future::ok(Self::serverside_error_response())
-            }
-        }))
+        let maybe_body = self
+            .topic_repository
+            .remove(topic_name.to_owned())
+            .map_err(UserApiError::TopicIOError)
+            .map(|_| Body::empty());
+
+        Self::create_response(maybe_body)
     }
 
     pub fn handle_topic_update(
@@ -112,22 +97,21 @@ impl<TR: TopicRepository> UserApiSession<TR> {
                     .map_err(UserApiError::RequestJsonBodyParseError)
             });
 
-        let topic_and_result = ftopic.join(validated_patch);
+        let maybe_response = ftopic.join(validated_patch).map(|(topic, patch)| {
+            let chunks = topic
+                .merge_patch(patch)
+                .inspect(|result| debug!("post patch"))
+                .map_err(TopicIOError)
+                .and_then(|json| serde_json::to_vec(&json).map_err(TopicJsonError))
+                .map(Chunk::from)
+                .into_stream()
+                .map_err(|e| Box::new(e) as ChunkStreamError);
 
-        Box::new(topic_and_result.then(move |result| match result {
-            Ok((topic, patch)) => {
-                debug!("Streaming data to client");
-                future::ok(Self::topic_patch_response(&topic, patch))
-            }
-            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicLoadError(error))) => {
-                info!("Failed to load topic. {}", error);
-                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
-            }
-            Err(other_error) => {
-                error!("Failed to open file. {}", other_error);
-                future::ok(Self::serverside_error_response())
-            }
-        }))
+            let stream: ChunkStream = Box::new(chunks);
+            Body::from(stream)
+        });
+
+        Self::create_response(maybe_response)
     }
 
     pub fn handle_topic_publish(
@@ -163,48 +147,34 @@ impl<TR: TopicRepository> UserApiSession<TR> {
         Box::new(future::ok(response))
     }
 
-    pub fn topic_patch_response(
-        topic: &dyn Topic,
-        patch: Value,
-    ) -> Response<<Self as Service>::ResBody> {
-        debug!(
-            "topic_patch_response({})",
-            serde_json::to_string(&patch).unwrap_or("no patch".parse().unwrap())
-        );
+    pub fn create_response<T>(maybe_body: T) -> <Self as Service>::Future
+    where
+        T: Future<Item = Body, Error = UserApiError> + Send + 'static,
+    {
+        Box::new(maybe_body.then(move |result| match result {
+            Ok(body) => {
+                debug!("Streaming data to client");
 
-        let chunks = topic
-            .merge_patch(patch)
-            .map(|x| {
-                debug!("post patch");
-                return x;
-            })
-            .map_err(TopicIOError)
-            .and_then(|json| serde_json::to_vec(&json).map_err(TopicJsonError))
-            .map(Chunk::from)
-            .into_stream()
-            .map_err(|e| Box::new(e) as ChunkStreamError);
+                let response = Response::builder()
+                    .status(StatusCode::OK)
+                    .body(body)
+                    .unwrap();
 
-        let stream: ChunkStream = Box::new(chunks);
-        let body: Body = Body::from(stream);
-
-        return Response::builder()
-            .status(StatusCode::OK)
-            .body(body)
-            .unwrap();
-    }
-
-    pub fn topic_response(topic: &dyn Topic) -> Response<<Self as Service>::ResBody> {
-        let chunk_source: ChunkStream = Box::new(
-            topic
-                .chunk_source()
-                .inspect_err(|e| error!("Failed to read file. {}", e))
-                .map_err(|e| Box::new(e) as ChunkStreamError),
-        );
-        let body = Body::from(chunk_source);
-        return Response::builder()
-            .status(StatusCode::OK)
-            .body(body)
-            .unwrap();
+                future::ok(response)
+            }
+            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicLoadError(error))) => {
+                info!("Failed to load topic. {}", error);
+                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
+            }
+            Err(UserApiError::TopicIOError(TopicRepositoryError::TopicRemovalError(error))) => {
+                info!("Failed to remove topic. {}", error);
+                future::ok(Self::not_found_response(http::TOPIC_NOT_FOUND_MESSAGE))
+            }
+            Err(other_error) => {
+                error!("Failed to open file. {}", other_error);
+                future::ok(Self::serverside_error_response())
+            }
+        }))
     }
 
     pub fn not_found_response(msg: &'static str) -> Response<<Self as Service>::ResBody> {
