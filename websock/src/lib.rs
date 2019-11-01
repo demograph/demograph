@@ -29,7 +29,7 @@ quick_error! {
     }
 }
 
-fn header_matches<S: AsHeaderName>(headers: &HeaderMap<HeaderValue>, name: S, value: &str) -> bool {
+pub fn header_matches<S: AsHeaderName>(headers: &HeaderMap<HeaderValue>, name: S, value: &str) -> bool {
     headers
         .get(name)
         .and_then(|v| v.to_str().ok())
@@ -79,7 +79,7 @@ where
     }
 }
 
-/// This function does basic websocket handshake, 
+/// This function does basic websocket handshake,
 /// return tuple of successful HTTP response (with status 101 - Protocol Upgrade) and
 /// future resolving to Websocket( struct implementing Stream and Sink of messages) or 
 /// error response (status 400) oif websocket handshake was not successful
@@ -99,23 +99,8 @@ pub fn upgrade_connection<T: Default>(
     let mut header_error = false;
     debug!("We got these headers: {:?}", req.headers());
 
-    if !header_matches(req.headers(), header::UPGRADE, "websocket") {
-        error!("Upgrade is not to websocket");
-        header_error = true;
-    }
-
-    if !header_matches(req.headers(), header::SEC_WEBSOCKET_VERSION, "13") {
-        error!("Websocket protocol version must be 13");
-        header_error = true;
-    }
-
-    if !req
-        .headers()
-        .typed_get::<headers::Connection>()
-        .map(|h| h.contains("Upgrade"))
-        .unwrap_or(false)
-    {
-        error!("It must be upgrade connection");
+    if !is_websocket_upgrade(&req.headers()) {
+        error!("Websocket upgrade aborted because request signaled no such intention");
         header_error = true;
     }
 
@@ -144,6 +129,27 @@ pub fn upgrade_connection<T: Default>(
     });
 
     Ok((res, upgraded))
+}
+
+pub fn is_websocket_upgrade(headers: &HeaderMap<HeaderValue>) -> bool {
+    if !header_matches(headers, header::UPGRADE, "websocket") {
+        error!("Upgrade is not to websocket");
+        return false;
+    }
+    if !header_matches(headers, header::SEC_WEBSOCKET_VERSION, "13") {
+        error!("Websocket protocol version must be 13");
+        return false;
+    }
+    if !headers
+        .typed_get::<headers::Connection>()
+        .map(|h| h.contains("Upgrade"))
+        .unwrap_or(false)
+    {
+        error!("It must be upgrade connection");
+        return false;
+    }
+
+    return true;
 }
 
 use std::sync::{Arc, RwLock};

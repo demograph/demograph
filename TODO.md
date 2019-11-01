@@ -40,3 +40,15 @@ editing, where an attacker can potentially trigger remote execution of its code.
 
 ## Public stateful topics - requirements
 - Need to serialize concurrent changes to the same topic
+
+
+## Code generator
+
+- Monotonic schema specification
+- Compiler for schema X, where X can be:
+    - JSON schema
+    - Flatbuffer
+    - Cap'n Proto
+- Generator for merge function of values in schema X
+- Compilation of models and merge function to native/WASM
+- Dynamic (but atomic) injection of model/merge code into topic update interpreter

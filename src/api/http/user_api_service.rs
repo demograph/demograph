@@ -8,7 +8,15 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use crate::api::http;
 use crate::api::http::error::UserApiError;
 use crate::api::http::session::UserApiSession;
-use crate::repository::TopicRepository;
+use crate::api::http::{ChunkStream, ChunkStreamError};
+use crate::domain::Topic;
+use crate::repository::{PlainFileRepository, TopicRepository};
+use crate::LOG_DIR;
+use futures::stream::Stream;
+use serde_json::Value;
+use std::borrow::Borrow;
+use std::ops::Deref;
+use websock::Message;
 
 impl<TR: TopicRepository> Service for UserApiSession<TR> {
     type ReqBody = Body;
@@ -35,7 +43,37 @@ impl<TR: TopicRepository> Service for UserApiSession<TR> {
                     http::HEALTHY_MESSAGE,
                 )));
             }
-            (&Method::GET, ["topic", topic]) => return self.handle_topic_query(topic),
+            (&Method::GET, ["topic", topic]) => {
+                if websock::is_websocket_upgrade(req.headers()) {
+                    debug!("Spawning websocket");
+                    //                    let response = self.handle_topic_query(topic);
+                    //                    let maybe_body = self
+                    //                        .topic_repository()
+                    //                        .reload(topic.to_owned().to_owned())
+                    //                        .from_err::<UserApiError>()
+                    //                        .map(|topic| {
+                    //                            let chunk_source: ChunkStream = Box::new(
+                    //                                topic
+                    //                                    .chunk_source()
+                    //                                    .inspect_err(|e| error!("Failed to read file. {}", e))
+                    //                                    .map_err(|e| Box::new(e) as ChunkStreamError),
+                    //                            );
+                    //
+                    //                            Body::from(chunk_source)
+                    //                        });
+
+                    let ws = websock::spawn_websocket(req, |m: Message<String>| {
+                        debug!("Got message {:?}", m);
+                        Box::new(future::ok(Some(websock::Message::text(
+                            format!("upgrade successful"),
+                            m.context(),
+                        ))))
+                    });
+                    return Box::new(future::ok(ws));
+                } else {
+                    return self.handle_topic_query(topic);
+                }
+            }
             (&Method::POST, ["topic", topic]) => return self.handle_topic_publish(topic, req),
             (&Method::DELETE, ["topic", topic]) => return self.handle_topic_deletion(topic),
             (&Method::PATCH, ["topic", topic]) => return self.handle_topic_update(topic, req),

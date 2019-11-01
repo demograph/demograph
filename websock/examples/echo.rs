@@ -33,7 +33,7 @@ fn server_upgrade(req: Request<Body>) -> Response<Body> {
 
 fn main() {
     pretty_env_logger::init();
-    let addr = ([127, 0, 0, 1], 5000).into();
+    let addr = ([127, 0, 0, 1], 3000).into();
 
     let server = Server::bind(&addr)
         .serve(|| service_fn_ok(server_upgrade))

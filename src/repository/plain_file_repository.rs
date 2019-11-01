@@ -36,7 +36,7 @@ impl PlainFileRepository {
         }
     }
 
-    fn topic_path(&self, name: &String) -> PathBuf {
+    pub fn topic_path(&self, name: &String) -> PathBuf {
         Path::new(&self.base_path).join(Path::new(&(name.to_owned() + ".log")))
     }
 

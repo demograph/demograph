@@ -21,6 +21,7 @@ use bytes::Bytes;
 use futures::stream::{Concat2, Map};
 use json_patch::{merge, patch, Patch, PatchError};
 use std::error::Error;
+use websock::Message;
 
 pub struct UserApiSession<TR: TopicRepository> {
     remote: SocketAddr,
@@ -33,6 +34,10 @@ impl<TR: TopicRepository> UserApiSession<TR> {
             remote,
             topic_repository,
         }
+    }
+
+    pub fn topic_repository(&self) -> &TR {
+        self.topic_repository()
     }
 
     /**
@@ -58,6 +63,18 @@ impl<TR: TopicRepository> UserApiSession<TR> {
 
         Self::create_response(maybe_body)
     }
+
+    //    pub fn handle_topic_websocket(
+    //        &self,
+    //        topic_name: &str,
+    //    ) -> Box<dyn Future<Item = Option<Message<Value>>, Error = websock::Error> + Send> {
+    //        let ftopic = self
+    //            .topic_repository
+    //            .reload(topic_name.to_owned())
+    //            .from_err::<UserApiError>();
+    //
+    //        ftopic.map(|topic| topic.chunk_source())
+    //    }
 
     pub fn handle_topic_deletion(&self, topic_name: &str) -> <Self as Service>::Future {
         debug!(
