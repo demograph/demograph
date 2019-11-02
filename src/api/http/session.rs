@@ -13,6 +13,8 @@ use crate::api::http::error::UserApiError;
 use crate::api::http::error::UserApiError::{
     RequestJsonBodyParseError, TopicIOError, TopicJsonError,
 };
+use crate::api::http::session;
+use crate::api::http::user_api_service;
 use crate::api::http::ChunkStream;
 use crate::api::http::ChunkStreamError;
 use crate::domain::Topic;
@@ -24,14 +26,14 @@ use std::error::Error;
 use websock::Message;
 
 pub struct UserApiSession<TR: TopicRepository> {
-    remote: SocketAddr,
+    //    remote: SocketAddr,
     topic_repository: TR,
 }
 
 impl<TR: TopicRepository> UserApiSession<TR> {
-    pub fn new(remote: SocketAddr, topic_repository: TR) -> UserApiSession<TR> {
+    pub fn new(topic_repository: TR) -> UserApiSession<TR> {
         UserApiSession {
-            remote,
+            //            remote,
             topic_repository,
         }
     }
@@ -44,7 +46,10 @@ impl<TR: TopicRepository> UserApiSession<TR> {
      *
      */
     pub fn handle_topic_query(&self, topic: &str) -> <Self as Service>::Future {
-        debug!("Querying '{}' from connection {}", topic, self.remote);
+        debug!(
+            "Querying '{}' from connection {}",
+            topic, "'no request access'"
+        );
 
         let maybe_body = self
             .topic_repository
@@ -77,10 +82,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
     //    }
 
     pub fn handle_topic_deletion(&self, topic_name: &str) -> <Self as Service>::Future {
-        debug!(
-            "Removing topic '{}' from connection {}",
-            topic_name, self.remote
-        );
+        debug!("Removing topic '{}' from connection", topic_name);
         let maybe_body = self
             .topic_repository
             .remove(topic_name.to_owned())
@@ -95,10 +97,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
         topic_name: &str,
         req: Request<<UserApiSession<TR> as Service>::ReqBody>,
     ) -> <Self as Service>::Future {
-        debug!(
-            "Patching topic '{}' from connection {}",
-            topic_name, self.remote
-        );
+        debug!("Patching topic '{}' from connection", topic_name);
 
         let ftopic = self
             .topic_repository
@@ -136,10 +135,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
         topic_name: &str,
         req: Request<<UserApiSession<TR> as Service>::ReqBody>,
     ) -> <Self as Service>::Future {
-        debug!(
-            "Publishing to '{}' from connection {}",
-            topic_name, self.remote
-        );
+        debug!("Publishing to '{}' from connection", topic_name);
         let chunk_source = req.into_body().map_err(UserApiError::BodyAccessError);
         let pipe = self
             .topic_repository

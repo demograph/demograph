@@ -1,9 +1,15 @@
+use std::borrow::Borrow;
+use std::error::Error;
+use std::ops::Deref;
 use std::prelude::v1::Vec;
 
-use futures::future;
+use futures::stream::Stream;
+use futures::{future, IntoFuture};
 use hyper::rt::Future;
-use hyper::service::Service;
+use hyper::service::{MakeService, Service};
 use hyper::{Body, Method, Request, Response, StatusCode};
+use serde_json::Value;
+use websock::Message;
 
 use crate::api::http;
 use crate::api::http::error::UserApiError;
@@ -12,11 +18,29 @@ use crate::api::http::{ChunkStream, ChunkStreamError};
 use crate::domain::Topic;
 use crate::repository::{PlainFileRepository, TopicRepository};
 use crate::LOG_DIR;
-use futures::stream::Stream;
-use serde_json::Value;
-use std::borrow::Borrow;
-use std::ops::Deref;
-use websock::Message;
+
+//impl<TR: TopicRepository + 'static> MakeService<TR> for UserApiSession<TR> {
+//    type ReqBody = <UserApiSession<TR> as Service>::ReqBody;
+//    type ResBody = <UserApiSession<TR> as Service>::ResBody;
+//    type Error = <<UserApiSession<TR> as Service>::ReqBody as Trait>::Error;
+//    type Service = UserApiSession<TR>;
+//    type Future = Box<dyn Future<Item = Self::Service, Error = Self::MakeError>>;
+//    type MakeError = <UserApiSession<TR> as Service>::Error;
+//
+//    fn make_service(&mut self, ctx: TR) -> Self::Future {
+//        Box::new(future::ok(UserApiSession::new(ctx)))
+//    }
+//}
+
+impl<TR: TopicRepository + Send + Sync + 'static> IntoFuture for UserApiSession<TR> {
+    type Future = Box<dyn Future<Item = Self::Item, Error = Self::Error> + Send + Sync>;
+    type Item = UserApiSession<TR>;
+    type Error = Box<dyn Error + Send + Sync>;
+
+    fn into_future(self) -> Self::Future {
+        Box::new(future::ok(self))
+    }
+}
 
 impl<TR: TopicRepository> Service for UserApiSession<TR> {
     type ReqBody = Body;
@@ -62,7 +86,7 @@ impl<TR: TopicRepository> Service for UserApiSession<TR> {
                     //                            Body::from(chunk_source)
                     //                        });
 
-                    let ws = websock::spawn_websocket(req, |m: Message<String>| {
+                    let ws = websock::spawn_websocket(req, |m: Message<u64>| {
                         debug!("Got message {:?}", m);
                         Box::new(future::ok(Some(websock::Message::text(
                             format!("upgrade successful"),
