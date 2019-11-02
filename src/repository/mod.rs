@@ -1,3 +1,8 @@
+use futures::Future;
+
+pub use error::*;
+pub use plain_file_repository::*;
+
 mod error;
 pub mod flatten_sink;
 mod plain_file_repository;
@@ -5,13 +10,8 @@ mod plain_file_repository;
 #[cfg(test)]
 mod mod_test;
 
-pub use error::*;
-pub use plain_file_repository::*;
-
-use futures::Future;
-
 pub trait TopicRepository: Clone + Send + 'static {
-    type Topic: crate::domain::Topic + Sized + Send + Sync + 'static;
+    type Topic: crate::domain::TopicOld + Sized + Send + Sync + 'static;
 
     /** Obtain a Topic for the given name, creating it if it did not exist previously */
     fn load(

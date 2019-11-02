@@ -1,28 +1,27 @@
-use crate::domain::Topic;
-use futures;
-use futures::future;
-use futures::Future;
+use std::io::Error;
 
 use std::path::Path;
 use std::path::PathBuf;
-use tokio::fs::OpenOptions;
-use tokio_codec::Decoder;
 
-use super::error::*;
-use super::TopicRepository;
+use futures;
+use futures::future;
+
+use futures::Future;
 use futures::Sink;
 use hyper::rt::Stream;
 use hyper::Chunk;
-
-use super::flatten_sink::FlattenSinkOps;
-use crate::api::http::chunks_codec::ChunksCodec;
-use crate::repository::TopicRepositoryError::TopicJsonReadError;
-use futures::future::IntoFuture;
-use json_patch::{merge, patch, Patch};
+use json_patch::merge;
 use serde_json::Value;
-use std::io::Error;
-use std::ops::DerefMut;
+use tokio::fs::OpenOptions;
 use tokio::io::ErrorKind;
+use tokio_codec::Decoder;
+
+use crate::api::http::chunks_codec::ChunksCodec;
+use crate::domain::TopicOld;
+
+use super::error::*;
+use super::flatten_sink::FlattenSinkOps;
+use super::TopicRepository;
 
 #[derive(Clone)]
 pub struct PlainFileRepository {
@@ -101,7 +100,7 @@ impl PlainFileTopic {
     }
 }
 
-impl Topic for PlainFileTopic {
+impl TopicOld for PlainFileTopic {
     /** @deprecated Have to find an alternative still though */
     fn chunk_sink(
         &self,

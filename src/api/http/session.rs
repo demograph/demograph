@@ -1,29 +1,21 @@
-use std::net::SocketAddr;
-
 use futures::future;
+
 use hyper::rt::{Future, Stream};
 use hyper::service::Service;
 use hyper::Chunk;
 use hyper::{Body, Request, Response, StatusCode};
-use serde_json::{Result, Value};
+
+use serde_json::Value;
 
 use crate::api::http;
-use crate::api::http::chunks_codec::ChunksCodec;
+
 use crate::api::http::error::UserApiError;
-use crate::api::http::error::UserApiError::{
-    RequestJsonBodyParseError, TopicIOError, TopicJsonError,
-};
-use crate::api::http::session;
-use crate::api::http::user_api_service;
+use crate::api::http::error::UserApiError::{TopicIOError, TopicJsonError};
+
 use crate::api::http::ChunkStream;
 use crate::api::http::ChunkStreamError;
-use crate::domain::Topic;
+use crate::domain::TopicOld;
 use crate::repository::{TopicRepository, TopicRepositoryError};
-use bytes::Bytes;
-use futures::stream::{Concat2, Map};
-use json_patch::{merge, patch, Patch, PatchError};
-use std::error::Error;
-use websock::Message;
 
 pub struct UserApiSession<TR: TopicRepository + Send> {
     //    remote: SocketAddr,
@@ -36,10 +28,6 @@ impl<TR: TopicRepository + Send> UserApiSession<TR> {
             //            remote,
             topic_repository,
         }
-    }
-
-    pub fn topic_repository(&self) -> &TR {
-        &self.topic_repository
     }
 
     /**
@@ -116,7 +104,7 @@ impl<TR: TopicRepository + Send> UserApiSession<TR> {
         let maybe_response = ftopic.join(validated_patch).map(|(topic, patch)| {
             let chunks = topic
                 .merge_patch(patch)
-                .inspect(|result| debug!("post patch"))
+                .inspect(|_result| debug!("post patch"))
                 .map_err(TopicIOError)
                 .and_then(|json| serde_json::to_vec(&json).map_err(TopicJsonError))
                 .map(Chunk::from)

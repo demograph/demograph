@@ -1,11 +1,12 @@
-use crate::repository::TopicRepositoryError;
 use std::error::Error;
 use std::fmt;
 
+use crate::repository::TopicRepositoryError;
+
 #[derive(Debug)]
 pub enum UserApiError {
-    BindError(),
-    ConnectionServeError(),
+    //    BindError(),
+    //    ConnectionServeError(),
     BodyAccessError(hyper::Error),
     RequestJsonBodyParseError(serde_json::error::Error),
     TopicIOError(TopicRepositoryError),
@@ -16,8 +17,8 @@ pub enum UserApiError {
 impl fmt::Display for UserApiError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            UserApiError::BindError() => write!(f, "BindError"),
-            UserApiError::ConnectionServeError() => write!(f, "ConnectionServeError"),
+            //            UserApiError::BindError() => write!(f, "BindError"),
+            //            UserApiError::ConnectionServeError() => write!(f, "ConnectionServeError"),
             UserApiError::BodyAccessError(x) => write!(f, "BodyAccessError({})", x),
             UserApiError::RequestJsonBodyParseError(x) => {
                 write!(f, "RequestJsonBodyParseError({})", x)

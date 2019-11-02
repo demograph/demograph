@@ -1,11 +1,12 @@
-use crate::repository::TopicRepositoryError;
 use futures::Stream;
 use futures::{Future, Sink};
 use hyper::Chunk;
-use json_patch::Patch;
+
 use serde_json::Value;
 
-pub trait Topic {
+use crate::repository::TopicRepositoryError;
+
+pub trait TopicOld {
     /** @deprecated Have to find an alternative still though */
     fn chunk_sink(
         &self,

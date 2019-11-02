@@ -1,18 +1,19 @@
-use crate::domain::Topic;
-use crate::storage::error::TopicStorageError;
-use crate::LOG_DIR;
+use futures::future;
+use futures::Sink;
+use hyper::Chunk;
+use hyper::rt::{Future, Stream};
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs::OpenOptions;
 use tokio_codec::Decoder;
 use tokio_fs::File;
 
-use futures::future;
-use futures::Sink;
-use hyper::rt::{Future, Stream};
-use hyper::Chunk;
+use crate::api::http::chunks_codec::ChunksCodec;
+use crate::domain::Topic;
+use crate::LOG_DIR;
+use crate::storage::error::TopicStorageError;
 
-use crate::api::http::chunks_codec::ChunksCodec; // <-- FIXME!
+// <-- FIXME!
 
 pub struct TopicStore {
     base_path: String,

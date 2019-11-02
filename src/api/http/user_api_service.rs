@@ -1,24 +1,21 @@
-use std::borrow::Borrow;
 use std::error::Error;
-use std::ops::Deref;
+
 use std::prelude::v1::Vec;
 
 use futures::stream::Stream;
 use futures::{future, IntoFuture};
 use hyper::rt::Future;
-use hyper::service::{MakeService, Service};
+use hyper::service::Service;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use serde_json::Value;
+
 use websock::Message;
 
 use crate::api::http;
 use crate::api::http::error::UserApiError;
 use crate::api::http::error::UserApiError::{BodyAccessError, TopicWebsocketError};
 use crate::api::http::session::UserApiSession;
-use crate::api::http::{ChunkStream, ChunkStreamError};
-use crate::domain::Topic;
-use crate::repository::{PlainFileRepository, TopicRepository};
-use crate::LOG_DIR;
+
+use crate::repository::TopicRepository;
 
 //impl<TR: TopicRepository + 'static> MakeService<TR> for UserApiSession<TR> {
 //    type ReqBody = <UserApiSession<TR> as Service>::ReqBody;

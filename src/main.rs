@@ -1,16 +1,18 @@
 #[macro_use]
 extern crate log;
 
+use std::fs::create_dir;
+use std::path::Path;
+
+use log::LevelFilter;
+use simplelog::*;
+
+use api::http::server::init_server;
+use repository::PlainFileRepository;
+
 mod api;
 mod domain;
 mod repository;
-
-use api::http::server::init_server;
-use log::LevelFilter;
-use repository::PlainFileRepository;
-use simplelog::*;
-use std::fs::create_dir;
-use std::path::Path;
 
 // TODO config
 const LOG_DIR: &str = "./data/";

@@ -1,14 +1,12 @@
 use std::net::SocketAddr;
 
-use hyper::rt::{Future, Stream};
-use hyper::server::conn::{AddrStream, Http};
-use hyper::service::{make_service_fn, service_fn, service_fn_ok};
-use hyper::{Error, Response, Server};
-use tokio_core::net::*;
+use hyper::rt::Future;
+
+use hyper::service::make_service_fn;
+use hyper::Server;
 
 use crate::api::http::session::UserApiSession;
 use crate::repository::TopicRepository;
-use futures::future;
 
 pub fn init_server<A: Into<SocketAddr>, TR: TopicRepository + Send + Sync + 'static>(
     address: A,
