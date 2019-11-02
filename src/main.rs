@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate quick_error;
 
 use std::fs::create_dir;
 use std::path::Path;
@@ -13,6 +15,7 @@ use repository::PlainFileRepository;
 mod api;
 mod domain;
 mod repository;
+mod topic;
 
 // TODO config
 const LOG_DIR: &str = "./data/";
