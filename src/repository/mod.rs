@@ -10,7 +10,7 @@ pub use plain_file_repository::*;
 
 use futures::Future;
 
-pub trait TopicRepository: Clone {
+pub trait TopicRepository: Clone + Send + 'static {
     type Topic: crate::domain::Topic + Sized + Send + Sync + 'static;
 
     /** Obtain a Topic for the given name, creating it if it did not exist previously */

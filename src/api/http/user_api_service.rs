@@ -13,6 +13,7 @@ use websock::Message;
 
 use crate::api::http;
 use crate::api::http::error::UserApiError;
+use crate::api::http::error::UserApiError::{BodyAccessError, TopicWebsocketError};
 use crate::api::http::session::UserApiSession;
 use crate::api::http::{ChunkStream, ChunkStreamError};
 use crate::domain::Topic;
@@ -42,7 +43,7 @@ impl<TR: TopicRepository + Send + Sync + 'static> IntoFuture for UserApiSession<
     }
 }
 
-impl<TR: TopicRepository> Service for UserApiSession<TR> {
+impl<TR: TopicRepository + Send + 'static> Service for UserApiSession<TR> {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = UserApiError;
@@ -70,30 +71,38 @@ impl<TR: TopicRepository> Service for UserApiSession<TR> {
             (&Method::GET, ["topic", topic]) => {
                 if websock::is_websocket_upgrade(req.headers()) {
                     debug!("Spawning websocket");
-                    //                    let response = self.handle_topic_query(topic);
-                    //                    let maybe_body = self
-                    //                        .topic_repository()
-                    //                        .reload(topic.to_owned().to_owned())
-                    //                        .from_err::<UserApiError>()
-                    //                        .map(|topic| {
-                    //                            let chunk_source: ChunkStream = Box::new(
-                    //                                topic
-                    //                                    .chunk_source()
-                    //                                    .inspect_err(|e| error!("Failed to read file. {}", e))
-                    //                                    .map_err(|e| Box::new(e) as ChunkStreamError),
-                    //                            );
-                    //
-                    //                            Body::from(chunk_source)
-                    //                        });
 
-                    let ws = websock::spawn_websocket(req, |m: Message<u64>| {
-                        debug!("Got message {:?}", m);
-                        Box::new(future::ok(Some(websock::Message::text(
-                            format!("upgrade successful"),
-                            m.context(),
-                        ))))
+                    let chunks = self
+                        .handle_topic_query(topic)
+                        .and_then(|response| {
+                            response
+                                .into_body()
+                                .concat2()
+                                .map(|chunk| chunk.to_vec())
+                                .map_err(BodyAccessError)
+                        })
+                        .map_err(|_| websock::Error::InvalidMessageType);
+
+                    let fws = chunks.map(|chunk| {
+                        websock::spawn_websocket(req, move |m: Message<Vec<u8>>| {
+                            debug!("Got message {:?}", m);
+                            Box::new(future::ok(Some(websock::Message::binary(
+                                // TODO: We really shouldn't be cloning here!!!
+                                chunk.clone(),
+                                m.context(),
+                            ))))
+                        })
                     });
-                    return Box::new(future::ok(ws));
+
+                    //                    let ws = websock::spawn_websocket(req, move |m: Message<Vec<u8>>| {
+                    //                        debug!("Got message {:?}", m);
+                    //                        Box::new(
+                    //                            chunks.map(|chunk| Some(websock::Message::binary(chunk, m.context()))),
+                    //                        )
+                    //                    });
+
+                    //                    return Box::new(future::ok(ws));
+                    return Box::new(fws.map_err(TopicWebsocketError));
                 } else {
                     return self.handle_topic_query(topic);
                 }

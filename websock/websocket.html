@@ -34,9 +34,18 @@
 
   function onMessage(evt)
   {
+    console.log(evt);
+
+    var reader = new FileReader();
+    reader.onload = function(event){
+        writeToScreen('<span style="color: blue;">JSON: ' + reader.result + '</span>');
+    };
+    reader.readAsText(evt.data);
+
     writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
-    doSend("WebSocket rocks");
-    // websocket.close();
+
+    // doSend("WebSocket rocks");
+    websocket.close();
   }
 
   function onError(evt)

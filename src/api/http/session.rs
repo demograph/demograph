@@ -25,12 +25,12 @@ use json_patch::{merge, patch, Patch, PatchError};
 use std::error::Error;
 use websock::Message;
 
-pub struct UserApiSession<TR: TopicRepository> {
+pub struct UserApiSession<TR: TopicRepository + Send> {
     //    remote: SocketAddr,
     topic_repository: TR,
 }
 
-impl<TR: TopicRepository> UserApiSession<TR> {
+impl<TR: TopicRepository + Send> UserApiSession<TR> {
     pub fn new(topic_repository: TR) -> UserApiSession<TR> {
         UserApiSession {
             //            remote,
@@ -39,7 +39,7 @@ impl<TR: TopicRepository> UserApiSession<TR> {
     }
 
     pub fn topic_repository(&self) -> &TR {
-        self.topic_repository()
+        &self.topic_repository
     }
 
     /**

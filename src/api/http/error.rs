@@ -10,6 +10,7 @@ pub enum UserApiError {
     RequestJsonBodyParseError(serde_json::error::Error),
     TopicIOError(TopicRepositoryError),
     TopicJsonError(serde_json::error::Error),
+    TopicWebsocketError(websock::Error),
 }
 
 impl fmt::Display for UserApiError {
@@ -23,6 +24,7 @@ impl fmt::Display for UserApiError {
             }
             UserApiError::TopicIOError(x) => write!(f, "TopicIOError({})", x),
             UserApiError::TopicJsonError(x) => write!(f, "TopicJsonError({})", x),
+            UserApiError::TopicWebsocketError(x) => write!(f, "TopicWebsocketError({})", x),
         }
     }
 }
