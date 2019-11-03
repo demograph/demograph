@@ -12,3 +12,6 @@ mod topic;
 pub use topic::*;
 #[cfg(test)]
 mod topic_test;
+
+mod topic_error;
+pub use topic_error::*;

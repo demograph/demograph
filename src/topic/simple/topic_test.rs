@@ -65,27 +65,12 @@ mod tests {
     #[test]
     fn patch_updates_state() {
         let mut topic = test_topic(test_string());
-        topic.patch(test_string()).wait();
+        let updated_topic = topic.patch(test_string()).wait();
 
-        let snapshot = topic.snapshot().wait();
-        assert!(snapshot.is_ok());
-        assert_eq!(
-            snapshot.unwrap(),
-            format!("{}{}", test_string(), test_string())
-        );
-    }
+        assert!(updated_topic.is_ok());
+        let updated_topic = updated_topic.unwrap();
 
-    #[test]
-    fn merge_updates_state__and__returns_result() {
-        let mut topic = test_topic(test_string());
-        let merge_result = topic.merge(test_string()).wait();
-        assert!(merge_result.is_ok());
-        assert_eq!(
-            merge_result.unwrap(),
-            format!("{}{}", test_string(), test_string())
-        );
-
-        let snapshot = topic.snapshot().wait();
+        let snapshot = updated_topic.snapshot().wait();
         assert!(snapshot.is_ok());
         assert_eq!(
             snapshot.unwrap(),
@@ -102,36 +87,40 @@ mod tests {
         assert_eq!(result.ok().unwrap().0, Some(test_string()));
     }
 
-    //    #[test] // does not support references in fact
-    //    fn snapshot__supports_references() {
-    //        let s = test_string();
-    //        let initial_state = RefTest {
-    //            x: test_string(),
-    //            y: &s,
-    //        };
-    //
-    //        let topic = SimpleTopic::<RefTest>::new(String::from(""), initial_state);
-    //        let snapshot = topic.snapshot().wait();
-    //
-    //        assert!(snapshot.is_ok());
-    //        assert_eq!(snapshot.unwrap().x, s);
-    //        assert_eq!(snapshot.unwrap().y, s);
-    //    }
+    #[test]
+    fn subscribe__provides_updates() {
+        let mut topic = test_topic(test_string());
+
+        let result = topic.subscribe().into_future().wait();
+        assert!(result.is_ok());
+        let head_stream = result.ok().unwrap();
+        assert_eq!(head_stream.0, Some(test_string()));
+
+        let patch = String::from("patching");
+        // waiting necessary for stream to pick up element
+        // without wait, the stream _does_ receive, but it's element is None
+        let patched_topic = topic.patch(patch.clone()).wait();
+
+        let result = head_stream.1.into_future().wait();
+        assert!(result.is_ok());
+        let head_stream = result.ok().unwrap();
+        assert_eq!(head_stream.0, Some(patch));
+    }
 
     impl Merge for String {
-        fn merge(&self, patch: Self) -> Result<Self, MergeError> {
+        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
             Ok(format!("{}{}", self, patch))
         }
     }
 
     impl Merge for Rc<String> {
-        fn merge(&self, patch: Self) -> Result<Self, MergeError> {
-            Ok(Rc::new(format!("{}{}", self, patch)))
+        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
+            Ok(Rc::new(format!("{}{}", self, &patch)))
         }
     }
 
     impl Merge for Arc<String> {
-        fn merge(&self, patch: Self) -> Result<Self, MergeError> {
+        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
             Ok(Arc::new(format!("{}{}", self, patch)))
         }
     }
