@@ -22,15 +22,15 @@ pub struct SimpleSubscription<State> {
     sink: Box<dyn Sink<SinkItem = State, SinkError = TopicError>>,
 }
 
-pub struct SimpleTopic<State> {
+pub struct InMemTopic<State> {
     id: String,
     state: State,
     subscription: Option<SimpleSubscription<State>>,
 }
 
-impl<State: Merge + Clone> SimpleTopic<State> {
-    pub fn new(id: String, state: State) -> SimpleTopic<State> {
-        SimpleTopic::<State> {
+impl<State: Merge + Clone> InMemTopic<State> {
+    pub fn new(id: String, state: State) -> InMemTopic<State> {
+        InMemTopic::<State> {
             id,
             state,
             subscription: None,
@@ -44,8 +44,8 @@ impl<State: Merge + Clone> SimpleTopic<State> {
     }
 }
 
-impl<State: Merge + Clone + 'static> Topic<State> for SimpleTopic<State> {
-    type TFS = SimpleTopic<State>;
+impl<State: Merge + Clone + 'static> Topic<State> for InMemTopic<State> {
+    type TFS = InMemTopic<State>;
     type StateFuture = Box<dyn Future<Item = State, Error = TopicError>>;
     type TopicFuture = Box<dyn Future<Item = Self::TFS, Error = TopicError>>;
     type UpdateStream = Box<dyn Stream<Item = State, Error = TopicError>>;

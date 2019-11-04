@@ -1,7 +1,7 @@
 quick_error! {
     #[derive(Debug)]
     pub enum TopicRepositoryError {
-        TopicCreationFailed(id: &'static str, err: crate::topic::TopicCreationError)
+        TopicSaveFailed(id: &'static str, err: crate::topic::TopicSaveError)
         TopicRetrievalFailed(id: &'static str, err: crate::topic::TopicRetrievalError)
         TopicDeletionFailed(id: &'static str, err: crate::topic::TopicDeletionError)
     }
@@ -9,9 +9,10 @@ quick_error! {
 
 quick_error! {
     #[derive(Debug)]
-    pub enum TopicCreationError {
+    pub enum TopicSaveError {
         IOFailed(err: std::io::Error)
-        TopicAlreadyExists{}
+        TopicFailed(err: crate::topic::TopicError)
+//        TopicAlreadyExists{}
     }
 }
 

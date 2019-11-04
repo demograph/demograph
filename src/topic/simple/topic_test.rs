@@ -1,5 +1,6 @@
 mod tests {
-    use crate::topic::simple::SimpleTopicFactory;
+    use crate::topic::simple::fixtures::*;
+    use crate::topic::simple::VolatileTopicFactory;
     use crate::topic::simple::*;
     use crate::topic::*;
     use futures::future::Future;
@@ -8,17 +9,9 @@ mod tests {
     use std::rc::Rc;
     use std::sync::Arc;
 
-    const TEST_STRING: &str = "test-string";
-    fn test_string() -> String {
-        String::from(TEST_STRING)
-    }
-    fn test_topic<T: Merge + Clone>(state: T) -> SimpleTopic<T> {
-        SimpleTopic::new(test_string(), state)
-    }
-
     #[test]
     fn snapshot__returns_initial_state() {
-        let topic = test_topic(test_string());
+        let topic = test_string_topic();
         let snapshot = topic.snapshot().wait();
 
         assert!(snapshot.is_ok());
@@ -56,7 +49,7 @@ mod tests {
 
     #[test]
     fn patch_succeeds() {
-        let mut topic = test_topic(test_string());
+        let mut topic = test_string_topic();
         let patched = topic.patch(test_string()).wait();
 
         assert!(patched.is_ok());
@@ -64,7 +57,7 @@ mod tests {
 
     #[test]
     fn patch_updates_state() {
-        let mut topic = test_topic(test_string());
+        let mut topic = test_string_topic();
         let updated_topic = topic.patch(test_string()).wait();
 
         assert!(updated_topic.is_ok());
@@ -80,7 +73,7 @@ mod tests {
 
     #[test]
     fn subscribe__provides_initial_state() {
-        let mut topic = test_topic(test_string());
+        let mut topic = test_string_topic();
         let result = topic.subscribe().into_future().wait();
 
         assert!(result.is_ok());
@@ -89,7 +82,7 @@ mod tests {
 
     #[test]
     fn subscribe__provides_updates() {
-        let mut topic = test_topic(test_string());
+        let mut topic = test_string_topic();
 
         let result = topic.subscribe().into_future().wait();
         assert!(result.is_ok());
@@ -105,23 +98,5 @@ mod tests {
         assert!(result.is_ok());
         let head_stream = result.ok().unwrap();
         assert_eq!(head_stream.0, Some(patch));
-    }
-
-    impl Merge for String {
-        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
-            Ok(format!("{}{}", self, patch))
-        }
-    }
-
-    impl Merge for Rc<String> {
-        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
-            Ok(Rc::new(format!("{}{}", self, &patch)))
-        }
-    }
-
-    impl Merge for Arc<String> {
-        fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
-            Ok(Arc::new(format!("{}{}", self, patch)))
-        }
     }
 }

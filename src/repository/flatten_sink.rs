@@ -154,76 +154,10 @@ where
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        //        loop {
-        //            let (next_state, ret_opt) = match self.state {
-        //                State::Future(ref mut f) => {
-        //                    match f.poll() {
-        //                        Ok(Async::NotReady) => {
-        //                            // State is not changed, early return.
-        //                            return Ok(Async::NotReady);
-        //                        }
-        //                        Ok(Async::Ready(sink)) => {
-        //                            // Future resolved to sink.
-        //                            // We do not return, but initiate dispatch that
-        //                            // sink in the next loop iteration.
-        //                            (State::Sink(sink), None)
-        //                        }
-        //                        Err(e) => (State::Eof, Some(Err(e))),
-        //                    }
-        //                }
-        //                State::Sink(ref mut s) => {
-        //                    // Just forward call to the sink,
-        //                    // do not track its state.
-        //                    return s.poll_complete();
-        //                }
-        //                State::Eof => (State::Done, Some(Ok(Async::Ready(None)))),
-        //                State::Done => {
-        //                    panic!("poll called after eof");
-        //                }
-        //            };
-        //
-        //            self.state = next_state;
-        //            if let Some(ret) = ret_opt {
-        //                return ret;
-        //            }
-        //        }
         return self.handle_sink(|sink| sink.poll_complete());
     }
 
     fn close(&mut self) -> Result<Async<()>, Self::SinkError> {
-        //        loop {
-        //            let (next_state, ret_opt) = match self.state {
-        //                State::Future(ref mut f) => {
-        //                    match f.poll() {
-        //                        Ok(Async::NotReady) => {
-        //                            // State is not changed, early return.
-        //                            return Ok(Async::NotReady);
-        //                        }
-        //                        Ok(Async::Ready(sink)) => {
-        //                            // Future resolved to sink.
-        //                            // We do not return, but initiate dispatch that
-        //                            // sink in the next loop iteration.
-        //                            (State::Sink(sink), None)
-        //                        }
-        //                        Err(e) => (State::Eof, Some(Err(e))),
-        //                    }
-        //                }
-        //                State::Sink(ref mut s) => {
-        //                    // Just forward call to the sink,
-        //                    // do not track its state.
-        //                    return s.close();
-        //                }
-        //                State::Eof => (State::Done, Some(Ok(Async::Ready(None)))),
-        //                State::Done => {
-        //                    panic!("poll called after eof");
-        //                }
-        //            };
-        //
-        //            self.state = next_state;
-        //            if let Some(ret) = ret_opt {
-        //                return ret;
-        //            }
-        //        }
         return self.handle_sink(|sink| sink.close());
     }
 }

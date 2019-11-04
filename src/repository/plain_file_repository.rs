@@ -14,7 +14,7 @@ use json_patch::merge;
 use serde_json::Value;
 use tokio::fs::OpenOptions;
 use tokio::io::ErrorKind;
-use tokio_codec::Decoder;
+use tokio_codec::{Decoder, Framed, FramedWrite};
 
 use crate::api::http::chunks_codec::ChunksCodec;
 use crate::domain::TopicOld;
@@ -22,6 +22,7 @@ use crate::domain::TopicOld;
 use super::error::*;
 use super::flatten_sink::FlattenSinkOps;
 use super::TopicRepository;
+use tokio_io::_tokio_codec::FramedRead;
 
 #[derive(Clone)]
 pub struct PlainFileRepository {
@@ -109,11 +110,11 @@ impl TopicOld for PlainFileTopic {
             .create(true)
             .truncate(true)
             .open(self.path.clone())
-            .map_err(TopicRepositoryError::TopicLoadError);
+            .map_err(|err| TopicRepositoryError::TopicLoadError(err));
 
         let file_sink = open_file.map(|file| {
-            Decoder::framed(ChunksCodec::new(), file)
-                .sink_map_err(TopicRepositoryError::TopicWriteError)
+            FramedWrite::new(file, ChunksCodec::new())
+                .sink_map_err(|err| TopicRepositoryError::TopicWriteError(err))
         });
 
         Box::new(file_sink.flatten_sink())
@@ -126,7 +127,7 @@ impl TopicOld for PlainFileTopic {
             .map_err(TopicRepositoryError::TopicLoadError);
 
         let file_stream = open_file.map(|file| {
-            Decoder::framed(ChunksCodec::new(), file).map_err(TopicRepositoryError::TopicReadError)
+            FramedRead::new(file, ChunksCodec::new()).map_err(TopicRepositoryError::TopicReadError)
         });
 
         Box::new(file_stream.flatten_stream())

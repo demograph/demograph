@@ -1,5 +1,6 @@
 mod tests {
-    use crate::topic::simple::SimpleTopicFactory;
+    use crate::topic::simple::fixtures::*;
+    use crate::topic::simple::VolatileTopicFactory;
     use crate::topic::simple::*;
     use crate::topic::*;
     use futures::future::Future;
@@ -7,8 +8,8 @@ mod tests {
 
     #[test]
     fn create__spawns_topic() {
-        let factory = SimpleTopicFactory::<String>::new();
-        let topic = factory.create(String::from("initial-state")).wait();
+        let factory = VolatileTopicFactory::<String>::new();
+        let topic = factory.create(test_string()).wait();
 
         assert!(topic.is_ok());
     }

@@ -15,3 +15,5 @@ mod topic_test;
 
 mod topic_error;
 pub use topic_error::*;
+
+mod fixtures;

@@ -1,13 +1,23 @@
-use crate::repository::TopicRepositoryError;
-use crate::topic::simple::SimpleTopic;
+use crate::api::http::chunks_codec::ChunksCodec;
+use crate::repository::flatten_sink::FlattenSinkOps;
+use crate::topic::simple::InMemTopic;
+use crate::topic::TopicRepositoryError;
+use crate::topic::TopicRepositoryError::TopicSaveFailed;
+use crate::topic::TopicSaveError;
+use crate::topic::TopicSaveError::TopicFailed;
 use crate::topic::{Merge, Topic, TopicRepository};
 use futures::{future, Future};
+use hyper::Chunk;
+use std::io;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use tokio::codec::{Decoder, Encoder, Framed, FramedWrite};
+use tokio::fs::OpenOptions;
+use tokio::prelude::*;
 
 pub struct SimpleTopicRepository<TS> {
     base_dir: &'static Path,
-    _phantom: std::marker::PhantomData<TS>,
+    _phantom: PhantomData<TS>,
 }
 
 impl<TS> SimpleTopicRepository<TS> {
@@ -24,19 +34,45 @@ impl<TS> SimpleTopicRepository<TS> {
 }
 
 impl<TS: Merge + Clone + 'static> TopicRepository<TS> for SimpleTopicRepository<TS> {
-    type TTS = SimpleTopic<TS>;
-    type TopicFuture = Box<dyn Future<Item = Self::TTS, Error = TopicRepositoryError>>;
+    type TTS = InMemTopic<TS>;
+    type TopicFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError>>;
     type DeleteFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError>>;
 
-    fn save(&self, id: String, topic: Self::TTS) -> Self::TopicFuture {
-        unimplemented!()
+    fn save<Enc>(&self, id: String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
+    where
+        Enc: Encoder<Item = TS, Error = io::Error> + 'static,
+    {
+        let open_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.topic_path(&id))
+            .map_err(|err| TopicSaveFailed("file open error", TopicSaveError::IOFailed(err)));
+
+        let downstream = open_file.map(move |file| {
+            FramedWrite::new(file, encoder).sink_map_err(|err| {
+                TopicSaveFailed("downstream error", TopicSaveError::IOFailed(err))
+            })
+        });
+
+        let upstream = topic
+            .subscribe()
+            .map_err(|e| TopicSaveFailed("upstream error", TopicSaveError::TopicFailed(e)));
+
+        let stream = upstream
+            .forward(downstream.flatten_sink())
+            .map(|(_stream, _sink)| ());
+
+        Box::new(stream)
     }
 
     fn delete(&self, id: String, topic: Self::TTS) -> Self::DeleteFuture {
         unimplemented!()
     }
 
-    fn load(&self, id: String) -> Self::TopicFuture {
+    fn load<Dec>(&self, id: String, decoder: Dec) -> Self::TopicFuture
+    where
+        Dec: Decoder,
+    {
         unimplemented!()
     }
 }
