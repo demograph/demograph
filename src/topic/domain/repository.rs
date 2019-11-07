@@ -7,16 +7,16 @@ use tokio_io::_tokio_codec::Decoder;
 
 pub trait TopicRepository<TS> {
     type TTS: Topic<TS>;
-    type TopicFuture: Future<Item = (), Error = TopicRepositoryError>;
-    type DeleteFuture: Future<Item = (), Error = TopicRepositoryError>;
+    type TopicFuture: Future<Item = (), Error = TopicRepositoryError> + Send;
+    type DeleteFuture: Future<Item = (), Error = TopicRepositoryError> + Send;
 
     fn save<Enc>(&self, id: String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
     where
-        Enc: Encoder<Item = TS, Error = io::Error> + 'static;
+        Enc: Encoder<Item = TS, Error = io::Error> + Send + 'static;
 
     fn delete(&self, id: String, topic: Self::TTS) -> Self::DeleteFuture;
 
     fn load<Dec>(&self, id: String, decoder: Dec) -> Self::TopicFuture
     where
-        Dec: Decoder;
+        Dec: Decoder + Send;
 }

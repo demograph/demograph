@@ -33,14 +33,14 @@ impl<TS> SimpleTopicRepository<TS> {
     }
 }
 
-impl<TS: Merge + Clone + 'static> TopicRepository<TS> for SimpleTopicRepository<TS> {
+impl<TS: Merge + Send + Clone + 'static> TopicRepository<TS> for SimpleTopicRepository<TS> {
     type TTS = InMemTopic<TS>;
-    type TopicFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError>>;
-    type DeleteFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError>>;
+    type TopicFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send>;
+    type DeleteFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send>;
 
     fn save<Enc>(&self, id: String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
     where
-        Enc: Encoder<Item = TS, Error = io::Error> + 'static,
+        Enc: Encoder<Item = TS, Error = io::Error> + Send + 'static,
     {
         let open_file = OpenOptions::new()
             .create(true)
@@ -71,7 +71,7 @@ impl<TS: Merge + Clone + 'static> TopicRepository<TS> for SimpleTopicRepository<
 
     fn load<Dec>(&self, id: String, decoder: Dec) -> Self::TopicFuture
     where
-        Dec: Decoder,
+        Dec: Decoder + Send,
     {
         unimplemented!()
     }

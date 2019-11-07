@@ -23,17 +23,17 @@ mod tests {
         y: &'a String,
     }
 
-    #[test]
-    fn snapshot__supports_rc() {
-        let initial_state = Rc::new(test_string());
-        let expected_state = initial_state.clone();
-
-        let topic = test_topic(initial_state);
-        let snapshot = topic.snapshot().wait();
-
-        assert!(snapshot.is_ok());
-        assert_eq!(snapshot.unwrap(), expected_state);
-    }
+    //    #[test]
+    //    fn snapshot__supports_rc() {
+    //        let initial_state = Rc::new(test_string());
+    //        let expected_state = initial_state.clone();
+    //
+    //        let topic = test_topic(initial_state);
+    //        let snapshot = topic.snapshot().wait();
+    //
+    //        assert!(snapshot.is_ok());
+    //        assert_eq!(snapshot.unwrap(), expected_state);
+    //    }
 
     #[test]
     fn snapshot__supports_arc() {

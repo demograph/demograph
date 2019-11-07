@@ -15,10 +15,10 @@ impl<TS> VolatileTopicFactory<TS> {
     }
 }
 
-impl<TS: Merge + Clone + 'static> TopicFactory<TS> for VolatileTopicFactory<TS> {
+impl<TS: Merge + Send + Clone + 'static> TopicFactory<TS> for VolatileTopicFactory<TS> {
     type TTS = InMemTopic<TS>;
     type CreateError = ();
-    type TopicFuture = Box<dyn Future<Item = Self::TTS, Error = Self::CreateError>>;
+    type TopicFuture = Box<dyn Future<Item = Self::TTS, Error = Self::CreateError> + Send>;
 
     fn create(&self, initial_state: TS) -> Self::TopicFuture {
         Box::new(future::ok(InMemTopic::<TS>::new(

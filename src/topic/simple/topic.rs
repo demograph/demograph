@@ -5,7 +5,6 @@ use crate::topic::TopicError::TopicAccessFailed;
 use crate::topic::TopicError::TopicPatchFailed;
 use crate::topic::TopicPatchError::MergeFailed;
 use crate::topic::{Merge, Topic};
-use futures::sink::Send;
 use futures::stream::Once;
 use futures::unsync::mpsc;
 use futures::{future, Future, IntoFuture, Sink, Stream};
@@ -19,7 +18,7 @@ use tokio::prelude::AsyncSink;
 use tokio::sync::mpsc::channel;
 
 pub struct SimpleSubscription<State> {
-    sink: Box<dyn Sink<SinkItem = State, SinkError = TopicError>>,
+    sink: Box<dyn Sink<SinkItem = State, SinkError = TopicError> + Send>,
 }
 
 pub struct InMemTopic<State> {
@@ -28,7 +27,7 @@ pub struct InMemTopic<State> {
     subscription: Option<SimpleSubscription<State>>,
 }
 
-impl<State: Merge + Clone> InMemTopic<State> {
+impl<State: Merge + Send + Clone> InMemTopic<State> {
     pub fn new(id: String, state: State) -> InMemTopic<State> {
         InMemTopic::<State> {
             id,
@@ -44,11 +43,11 @@ impl<State: Merge + Clone> InMemTopic<State> {
     }
 }
 
-impl<State: Merge + Clone + 'static> Topic<State> for InMemTopic<State> {
+impl<State: Merge + Send + Clone + 'static> Topic<State> for InMemTopic<State> {
     type TFS = InMemTopic<State>;
-    type StateFuture = Box<dyn Future<Item = State, Error = TopicError>>;
-    type TopicFuture = Box<dyn Future<Item = Self::TFS, Error = TopicError>>;
-    type UpdateStream = Box<dyn Stream<Item = State, Error = TopicError>>;
+    type StateFuture = Box<dyn Future<Item = State, Error = TopicError> + Send>;
+    type TopicFuture = Box<dyn Future<Item = Self::TFS, Error = TopicError> + Send>;
+    type UpdateStream = Box<dyn Stream<Item = State, Error = TopicError> + Send>;
 
     fn snapshot(&self) -> Self::StateFuture {
         Box::new(future::ok(self.state.clone()))

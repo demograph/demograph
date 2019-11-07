@@ -4,25 +4,30 @@ use crate::topic::Merge;
 use crate::topic::MergeError;
 use bytes::BufMut;
 use bytes::BytesMut;
-use std::io;
+use futures::Future;
+use std::panic::UnwindSafe;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
+use std::{io, panic, thread};
 use tokio::codec::{Decoder, Encoder};
+use tokio::runtime;
+use tokio::runtime::Runtime;
 
 const TEST_STRING: &str = "test-string";
 pub fn test_string() -> String {
     String::from(TEST_STRING)
 }
 
-pub fn test_topic<T: Merge + Clone>(state: T) -> InMemTopic<T> {
+pub fn test_topic<T: Merge + Send + Clone>(state: T) -> InMemTopic<T> {
     InMemTopic::new(test_string(), state)
 }
 pub fn test_string_topic() -> InMemTopic<String> {
     InMemTopic::new(test_string(), test_string())
 }
 
-const TEST_DATA_DIR: &'static str = "./test-data";
+const TEST_DATA_DIR: &'static str = "./data";
 pub fn test_directory() -> &'static Path {
     Path::new(TEST_DATA_DIR)
 }
@@ -34,6 +39,45 @@ pub fn topic_path(id: &String) -> PathBuf {
 pub fn test_repository() -> SimpleTopicRepository<String> {
     SimpleTopicRepository::<String>::new(test_directory())
 }
+
+pub trait FutureRunner {
+    fn run(self) -> Runtime;
+}
+
+impl<F> FutureRunner for F
+where
+    F: Future<Item = (), Error = ()> + Send + 'static,
+{
+    fn run(self) -> Runtime {
+        let mut runtime: Runtime = Runtime::new().unwrap();
+        runtime.spawn(self);
+        runtime
+    }
+}
+
+pub fn eventually_panic_free<F: Fn() -> S + UnwindSafe + Clone, S>(closure: F) -> S {
+    fn internal<F: Fn() -> S + UnwindSafe + Clone, S>(closure: F, duration: Duration) -> S {
+        match panic::catch_unwind(closure.clone()) {
+            Ok(s) => s,
+            Err(_) => {
+                thread::sleep(duration);
+                println!("Waiting for {:?}", duration);
+                internal::<F, S>(closure, duration * 2)
+            }
+        }
+    }
+    internal(closure, Duration::from_millis(1))
+}
+
+//fn eventually_ok<F>(closure: F) -> S {
+//    fn internal<F, S>(closure: F, duration: Duration) -> S {
+//        panic::catch_unwind(closure).or_else(|| {
+//            thread::sleep(duration);
+//            internal(closure, duration * 2)
+//        })
+//    }
+//    internal(closure, Duration::from_millis(1))
+//}
 
 impl Merge for String {
     fn merge(&self, patch: &Self) -> Result<Self, MergeError> {

@@ -6,9 +6,9 @@ use crate::topic::TopicError;
 
 pub trait Topic<State> {
     type TFS: Topic<State>;
-    type StateFuture: Future<Item = State, Error = TopicError>;
-    type TopicFuture: Future<Item = Self::TFS, Error = TopicError>;
-    type UpdateStream: Stream<Item = State, Error = TopicError>;
+    type StateFuture: Future<Item = State, Error = TopicError> + Send;
+    type TopicFuture: Future<Item = Self::TFS, Error = TopicError> + Send;
+    type UpdateStream: Stream<Item = State, Error = TopicError> + Send;
 
     fn snapshot(&self) -> Self::StateFuture;
 
