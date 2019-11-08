@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-if [[ -n $1 ]]; then
-    CMD=test
-fi
+CMDS=
+for CMD in "$@"
+do
+    CMDS="$CMDS -x $CMD "
+done
 
-RUST_LOG="warn,demograph=trace,websock=trace,hyper=trace,tokio_reactor=trace" cargo watch -x fmt -x $CMD -x run -i data # -i *.log -i *.md
+cargo watch -x fmt $CMDS
