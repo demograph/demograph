@@ -20,7 +20,7 @@ quick_error! {
         IOFailed{}
         StateParsingFailed{}
         PatchParsingFailed{}
-        MergeFailed(err: MergeError)
+        MergeFailed{}
     }
 }
 

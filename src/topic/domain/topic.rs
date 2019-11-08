@@ -1,8 +1,8 @@
 use futures::Future;
 use futures::Stream;
 
-use crate::topic::MergeError;
 use crate::topic::TopicError;
+use std::fmt::Debug;
 
 pub trait Topic<State> {
     type TFS: Topic<State>;
@@ -21,5 +21,7 @@ pub trait Merge
 where
     Self: std::marker::Sized,
 {
-    fn merge(&self, patch: &Self) -> Result<Self, MergeError>;
+    type MergeError: Debug;
+
+    fn merge(&self, patch: &Self) -> Result<Self, Self::MergeError>;
 }

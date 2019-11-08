@@ -80,19 +80,21 @@ pub fn eventually_panic_free<F: Fn() -> S + UnwindSafe + Clone, S>(closure: F) -
 //}
 
 impl Merge for String {
-    fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
+    type MergeError = ();
+    fn merge(&self, patch: &Self) -> Result<Self, Self::MergeError> {
         Ok(format!("{}{}", self, patch))
     }
 }
 
-impl Merge for Rc<String> {
-    fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
-        Ok(Rc::new(format!("{}{}", self, &patch)))
-    }
-}
+//impl Merge for Rc<String> {
+//    fn merge(&self, patch: &Self) -> Result<Self, Self::MergeError> {
+//        Ok(Rc::new(format!("{}{}", self, &patch)))
+//    }
+//}
 
 impl Merge for Arc<String> {
-    fn merge(&self, patch: &Self) -> Result<Self, MergeError> {
+    type MergeError = ();
+    fn merge(&self, patch: &Self) -> Result<Self, Self::MergeError> {
         Ok(Arc::new(format!("{}{}", self, patch)))
     }
 }

@@ -37,9 +37,10 @@ impl<State: Merge + Send + Clone> InMemTopic<State> {
     }
 
     fn apply_patch(&mut self, patch: &State) -> Result<State, TopicError> {
-        self.state
-            .merge(patch)
-            .map_err(|err| TopicPatchFailed(MergeFailed(err)))
+        self.state.merge(patch).map_err(|err| {
+            error!("Failed to patch due to {:?}", err);
+            TopicPatchFailed(MergeFailed {})
+        })
     }
 }
 
