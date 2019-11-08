@@ -20,12 +20,11 @@ mod tests {
     #[test]
     fn save_should_persist_current_state() {
         given_no_topic_file(|topic_name, path| {
-            // Given a repository and topic
-            let repository = test_repository();
+            // Given a topic
             let mut topic = test_string_topic();
 
             // When we save the topic to the repository
-            let save_future = repository
+            let save_future = test_repository()
                 .save(topic_name, &mut topic, LinesCodec::new())
                 .map_err(|_| ())
                 .run();
@@ -42,12 +41,11 @@ mod tests {
     #[test]
     fn save_should_persist_updates() {
         given_no_topic_file(|topic_name, path| {
-            // And a repository and topic
-            let repository = test_repository();
+            // Given a topic
             let mut topic = test_string_topic();
 
             // When we save the topic to the repository
-            let save_future = repository
+            let save_future = test_repository()
                 .save(topic_name, &mut topic, LinesCodec::new())
                 .map_err(|_| ())
                 .run();
@@ -62,5 +60,19 @@ mod tests {
                 assert_eq!(content, format!("{}\n{}\n", test_string(), another_string))
             });
         });
+    }
+
+    #[test]
+    fn delete_topic_should_delete_file() {
+        given_a_topic_file(|topic_name, path| {
+            // Given a topic
+            let mut topic = test_string_topic();
+
+            // When we delete the topic
+            test_repository().delete(topic_name, topic);
+
+            // Then the topic file should eventually be removed
+            eventually_panic_free(|| assert!(!path.exists()));
+        })
     }
 }

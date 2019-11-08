@@ -1,6 +1,7 @@
 use crate::api::http::chunks_codec::ChunksCodec;
 use crate::repository::flatten_sink::FlattenSinkOps;
 use crate::topic::simple::InMemTopic;
+use crate::topic::TopicDeletionError;
 use crate::topic::TopicRepositoryError;
 use crate::topic::TopicRepositoryError::TopicSaveFailed;
 use crate::topic::TopicSaveError;
@@ -66,7 +67,13 @@ impl<TS: Merge + Send + Clone + 'static> TopicRepository<TS> for SimpleTopicRepo
     }
 
     fn delete(&self, id: &String, topic: Self::TTS) -> Self::DeleteFuture {
-        unimplemented!()
+        Box::new(
+            std::fs::remove_file(self.topic_path(id))
+                .into_future()
+                .map_err(|e| {
+                    TopicRepositoryError::TopicDeletionFailed("", TopicDeletionError::IOFailed(e))
+                }),
+        )
     }
 
     fn load<Dec>(&self, id: &String, decoder: Dec) -> Self::TopicFuture

@@ -7,6 +7,7 @@ use bytes::BytesMut;
 use futures::Future;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
+use std::fs::OpenOptions;
 use std::panic::UnwindSafe;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -53,7 +54,7 @@ pub fn random_string() -> String {
         .collect()
 }
 
-pub fn given_no_topic_file<F>(test: F)
+pub fn given_a_topic_name<F>(test: F)
 where
     F: FnOnce(&String, &PathBuf) -> () + UnwindSafe,
 {
@@ -65,20 +66,49 @@ where
         topic_name, topic_path
     );
 
-    // Make sure the file is removed prior to test
-    if topic_path.exists() {
-        assert!(std::fs::remove_file(&topic_path).is_ok());
-    }
+    test(&topic_name, &topic_path);
+}
 
-    // Perform the test
-    let result = panic::catch_unwind(|| test(&topic_name, &topic_path));
+pub fn given_a_topic_file<F>(test: F)
+where
+    F: FnOnce(&String, &PathBuf) -> () + UnwindSafe,
+{
+    given_a_topic_name(|topic_name, topic_path| {
+        // Make sure the file exists prior to test
+        OpenOptions::new().create(true).open(topic_path);
 
-    // And let's not leave trash hanging around tests
-    if topic_path.exists() {
-        assert!(std::fs::remove_file(&topic_path).is_ok());
-    }
+        // Perform the test
+        let result = panic::catch_unwind(|| test(topic_name, topic_path));
 
-    result.unwrap();
+        // And let's not leave trash hanging around tests
+        if topic_path.exists() {
+            assert!(std::fs::remove_file(topic_path).is_ok());
+        }
+
+        result.unwrap();
+    })
+}
+
+pub fn given_no_topic_file<F>(test: F)
+where
+    F: FnOnce(&String, &PathBuf) -> () + UnwindSafe,
+{
+    given_a_topic_name(|topic_name, topic_path| {
+        // Make sure the file is removed prior to test
+        if topic_path.exists() {
+            assert!(std::fs::remove_file(topic_path).is_ok());
+        }
+
+        // Perform the test
+        let result = panic::catch_unwind(|| test(topic_name, topic_path));
+
+        // And let's not leave trash hanging around tests
+        if topic_path.exists() {
+            assert!(std::fs::remove_file(topic_path).is_ok());
+        }
+
+        result.unwrap();
+    })
 }
 
 pub trait FutureRunner {
