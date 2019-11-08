@@ -5,6 +5,8 @@ use crate::topic::MergeError;
 use bytes::BufMut;
 use bytes::BytesMut;
 use futures::Future;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use std::panic::UnwindSafe;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -36,8 +38,47 @@ pub fn topic_path(id: &String) -> PathBuf {
     Path::new(test_directory()).join(Path::new(&(id.to_owned() + ".log")))
 }
 
+pub fn topic_file() -> PathBuf {
+    topic_path(&test_string())
+}
+
 pub fn test_repository() -> SimpleTopicRepository<String> {
     SimpleTopicRepository::<String>::new(test_directory())
+}
+
+pub fn random_string() -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .collect()
+}
+
+pub fn given_no_topic_file<F>(test: F)
+where
+    F: FnOnce(&String, &PathBuf) -> () + UnwindSafe,
+{
+    let topic_name = random_string();
+    let topic_path = topic_path(&topic_name);
+
+    println!(
+        "Using topic-name {} for test with backing file '{:?}'",
+        topic_name, topic_path
+    );
+
+    // Make sure the file is removed prior to test
+    if topic_path.exists() {
+        assert!(std::fs::remove_file(&topic_path).is_ok());
+    }
+
+    // Perform the test
+    let result = panic::catch_unwind(|| test(&topic_name, &topic_path));
+
+    // And let's not leave trash hanging around tests
+    if topic_path.exists() {
+        assert!(std::fs::remove_file(&topic_path).is_ok());
+    }
+
+    result.unwrap();
 }
 
 pub trait FutureRunner {

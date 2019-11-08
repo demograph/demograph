@@ -38,14 +38,14 @@ impl<TS: Merge + Send + Clone + 'static> TopicRepository<TS> for SimpleTopicRepo
     type TopicFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send>;
     type DeleteFuture = Box<dyn Future<Item = (), Error = TopicRepositoryError> + Send>;
 
-    fn save<Enc>(&self, id: String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
+    fn save<Enc>(&self, id: &String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
     where
         Enc: Encoder<Item = TS, Error = io::Error> + Send + 'static,
     {
         let open_file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.topic_path(&id))
+            .open(self.topic_path(id))
             .map_err(|err| TopicSaveFailed("file open error", TopicSaveError::IOFailed(err)));
 
         let downstream = open_file.map(move |file| {
@@ -65,11 +65,11 @@ impl<TS: Merge + Send + Clone + 'static> TopicRepository<TS> for SimpleTopicRepo
         Box::new(stream)
     }
 
-    fn delete(&self, id: String, topic: Self::TTS) -> Self::DeleteFuture {
+    fn delete(&self, id: &String, topic: Self::TTS) -> Self::DeleteFuture {
         unimplemented!()
     }
 
-    fn load<Dec>(&self, id: String, decoder: Dec) -> Self::TopicFuture
+    fn load<Dec>(&self, id: &String, decoder: Dec) -> Self::TopicFuture
     where
         Dec: Decoder + Send,
     {

@@ -10,13 +10,13 @@ pub trait TopicRepository<TS> {
     type TopicFuture: Future<Item = (), Error = TopicRepositoryError> + Send;
     type DeleteFuture: Future<Item = (), Error = TopicRepositoryError> + Send;
 
-    fn save<Enc>(&self, id: String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
+    fn save<Enc>(&self, id: &String, topic: &mut Self::TTS, mut encoder: Enc) -> Self::TopicFuture
     where
         Enc: Encoder<Item = TS, Error = io::Error> + Send + 'static;
 
-    fn delete(&self, id: String, topic: Self::TTS) -> Self::DeleteFuture;
+    fn delete(&self, id: &String, topic: Self::TTS) -> Self::DeleteFuture;
 
-    fn load<Dec>(&self, id: String, decoder: Dec) -> Self::TopicFuture
+    fn load<Dec>(&self, id: &String, decoder: Dec) -> Self::TopicFuture
     where
         Dec: Decoder + Send;
 }

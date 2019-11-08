@@ -18,20 +18,49 @@ mod tests {
     use tokio::runtime::Runtime;
 
     #[test]
-    fn save__should__persist_current_state() {
-        let repository = test_repository();
-        let mut topic = test_string_topic();
+    fn save_should_persist_current_state() {
+        given_no_topic_file(|topic_name, path| {
+            // Given a repository and topic
+            let repository = test_repository();
+            let mut topic = test_string_topic();
 
-        let save_future = repository
-            .save(test_string(), &mut topic, LinesCodec::new())
-            .map_err(|_| ())
-            .run();
+            // When we save the topic to the repository
+            let save_future = repository
+                .save(topic_name, &mut topic, LinesCodec::new())
+                .map_err(|_| ())
+                .run();
 
-        eventually_panic_free(|| {
-            assert!(topic_path(&test_string()).exists());
-        });
+            // Then the topic file should eventually be created
+            eventually_panic_free(|| {
+                assert!(path.exists());
+                let content = std::fs::read_to_string(path).unwrap();
+                assert_eq!(content, format!("{}\n", test_string()))
+            });
+        })
     }
 
     #[test]
-    fn save__should__persist_updates() {}
+    fn save_should_persist_updates() {
+        given_no_topic_file(|topic_name, path| {
+            // And a repository and topic
+            let repository = test_repository();
+            let mut topic = test_string_topic();
+
+            // When we save the topic to the repository
+            let save_future = repository
+                .save(topic_name, &mut topic, LinesCodec::new())
+                .map_err(|_| ())
+                .run();
+
+            // And a write is made to the topic
+            let another_string = random_string();
+            topic.patch(another_string.clone()).wait();
+
+            // Then the topic file should eventually contain the topic content
+            eventually_panic_free(|| {
+                let content = std::fs::read_to_string(path).unwrap();
+                assert_eq!(content, format!("{}\n{}\n", test_string(), another_string))
+            });
+        });
+    }
 }
