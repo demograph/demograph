@@ -6,7 +6,7 @@ version = "0.1.0"
 [dependencies]
 bytes = "0.4.12"
 futures = "0.1.29"
-hyper = "0.12.35"
+hyper = "0.14.3"
 json-patch = "0.2.6"
 lazy_static = "1.4.0"
 log = "0.4.8"
