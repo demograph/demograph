@@ -7,7 +7,7 @@ version = "0.1.0"
 [dependencies]
 futures = "0.1.29"
 headers = "0.2.3"
-hyper = "0.12.35"
+hyper = "0.14.5"
 log = "0.4.8"
 quick-error = "1.2.2"
 tokio = "0.1.22"
